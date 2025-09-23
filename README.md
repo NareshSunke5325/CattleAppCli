@@ -1,79 +1,119 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Cattle Yard Management App
 
-# Getting Started
+A comprehensive React Native application for managing cattle yard operations, built with modern technologies and best practices.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## Features
 
-## Step 1: Start the Metro Server
+- **Dashboard**: Real-time overview of yard capacity, livestock distribution, and revenue
+- **Yard Management**: Monitor and manage multiple cattle yards with capacity tracking
+- **Livestock Tracking**: Track individual animals and herd types
+- **User Authentication**: Secure login system with role-based access
+- **Mobile-First Design**: Optimized for mobile devices with responsive design
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+## Technology Stack
 
-To start Metro, run the following command from the _root_ of your React Native project:
+- **React Native 0.74.2**: Cross-platform mobile development
+- **Redux Toolkit**: State management with persistence
+- **React Navigation**: Navigation with drawer and stack navigators
+- **TypeScript**: Type-safe development
+- **Vector Icons**: Material Design icons
+- **Axios**: HTTP client for API communication
 
+## Getting Started
+
+### Prerequisites
+
+Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions.
+
+### Installation
+
+1. Install dependencies:
 ```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
+npm install
 ```
 
-## Step 2: Start your Application
-
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
-
+2. For iOS, install CocoaPods dependencies:
 ```bash
-# using npm
+cd ios && pod install && cd ..
+```
+
+### Running the App
+
+#### For Android
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### For iOS
-
+#### For iOS
 ```bash
-# using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+### Building APK
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+#### Debug APK
+```bash
+npm run build:android-debug
+```
 
-## Step 3: Modifying your App
+#### Release APK
+```bash
+npm run build:android
+```
 
-Now that you have successfully run the app, let's modify it.
+The APK will be generated in `android/app/build/outputs/apk/`
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+## Project Structure
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+```
+src/
+├── components/          # React Native components
+├── store/              # Redux store and slices
+├── theme/              # Colors, fonts, and styling
+└── utils/              # Utility functions and route configurations
+```
 
-## Congratulations! :tada:
+## Key Features
 
-You've successfully run and modified your React Native App. :partying_face:
+### Dashboard
+- Real-time yard capacity monitoring
+- Livestock distribution charts
+- Revenue tracking by yard
+- Quick access to all major functions
 
-### Now what?
+### Yard Management
+- View all cattle yards with status indicators
+- Track deck availability and occupancy
+- Search and filter yards
+- Book available decks
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+### Authentication
+- Secure login with username/password
+- Token-based authentication
+- Persistent login state
+- Role-based access control
 
-# Troubleshooting
+## Development
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+### Default Login Credentials
+- Username: `manager`
+- Password: `password123`
 
-# Learn More
+### Mock Data
+The app currently uses mock data for development. Replace the mock API calls in the Redux slices with actual API endpoints when ready.
 
-To learn more about React Native, take a look at the following resources:
+## Contributing
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+1. Follow the existing code structure and naming conventions
+2. Use TypeScript for all new components
+3. Implement proper error handling
+4. Add appropriate loading states
+5. Follow React Native best practices
+
+## License
+
+This project is proprietary software developed by Object Technology Solutions.
+
+## Support
+
+For support and questions, contact the development team at Object Technology Solutions.

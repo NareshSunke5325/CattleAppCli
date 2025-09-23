@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,74 +14,60 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { useSelector } from "react-redux";
-import DeviceInfo from "react-native-device-info";
-import { AppDispatch, RootState, useAppDispatch } from "../redux/store/store";
-import { loginDetails } from "../redux/user.action";
-import Icon from "react-native-vector-icons/FontAwesome";
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
+import DeviceInfo from 'react-native-device-info';
+import { RootState, useAppDispatch } from '../store/store';
+import { loginUser } from '../store/slices/authSlice';
+import Icon from 'react-native-vector-icons/FontAwesome';
+import { Color } from '../theme';
 
-const { height: DEVICE_HEIGHT } = Dimensions.get("window");
+const { height: DEVICE_HEIGHT } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
-  const userDetails = useSelector((state: RootState) => state.user.details);
+  const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('manager');
+  const [password, setPassword] = useState('password123');
   const [isUsernameFocused, setIsUsernameFocused] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (
-      userDetails?.expiration &&
-      new Date() < new Date(userDetails.expiration)
-    ) {
-      if (userDetails.mustChangePassword) {
-        navigation.navigate("ChangePassword");
-      } else {
-        navigation.navigate("Home");
-      }
+    if (isAuthenticated) {
+      navigation.navigate('Home');
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const onLogin = async () => {
     if (!username.trim()) {
-      Alert.alert("", "Please Enter Username");
+      Alert.alert('', 'Please Enter Username');
       return;
     }
     if (!password.trim()) {
-      Alert.alert("", "Please Enter Password");
+      Alert.alert('', 'Please Enter Password');
       return;
     }
 
-    setIsLoading(true);
     try {
-      const deviceId = await DeviceInfo.getUniqueId();
-      const params = { username, password, deviceId, client: "MOBILE" };
-      const resp = await dispatch(loginDetails(params));
-      if (resp.payload) {
-        resp.payload.mustChangePassword
-          ? navigation.navigate("ChangePassword")
-          : navigation.navigate("Home");
+      const result = await dispatch(loginUser({ username: username.trim(), password }));
+      if (loginUser.fulfilled.match(result)) {
+        navigation.navigate('Home');
       } else {
-        Alert.alert("", "Invalid username or password. Please try again.");
+        Alert.alert('', 'Invalid username or password. Please try again.');
       }
     } catch {
-      Alert.alert("Error", "Something went wrong. Please try again.");
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
     }
   };
 
   return (
     <ImageBackground
-      source={require("../images/cattle-yard-desktop.jpg")}
+      source={require('../images/cattle-yard-desktop.jpg')}
       style={styles.backgroundImage}
       resizeMode="cover"
     >
@@ -90,7 +76,7 @@ export default function LoginScreen() {
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <ScrollView
             contentContainerStyle={styles.scroll}
@@ -100,12 +86,11 @@ export default function LoginScreen() {
             <View style={styles.logoSection}>
               <View style={styles.logoBox}>
                 <Image
-                  source={require("../images/logo.jpg")}
+                  source={require('../images/logo.jpg')}
                   style={styles.logo}
                 />
               </View>
               <Text style={styles.appName}>Cattle Yard Management</Text>
-              {/* <Text style={styles.appSubtitle}>Yard Management System</Text> */}
               <View style={styles.divider} />
             </View>
 
@@ -127,7 +112,7 @@ export default function LoginScreen() {
                 <Icon name="user" size={20} color="#9CA3AF" />
                 <TextInput
                   style={styles.input}
-                  placeholder="yard-manager"
+                  placeholder="manager"
                   placeholderTextColor="rgba(0,0,0,0.4)"
                   value={username}
                   onChangeText={setUsername}
@@ -138,9 +123,7 @@ export default function LoginScreen() {
                   <View
                     style={[
                       styles.dot,
-                      username.length >= 3
-                        ? styles.dotValid
-                        : styles.dotInvalid,
+                      username.length >= 3 ? styles.dotValid : styles.dotInvalid,
                     ]}
                   />
                 )}
@@ -165,11 +148,9 @@ export default function LoginScreen() {
                   onFocus={() => setIsPasswordFocused(true)}
                   onBlur={() => setIsPasswordFocused(false)}
                 />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                >
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <Icon
-                    name={showPassword ? "eye-slash" : "eye"}
+                    name={showPassword ? 'eye-slash' : 'eye'}
                     size={20}
                     color="#9CA3AF"
                   />
@@ -178,9 +159,7 @@ export default function LoginScreen() {
                   <View
                     style={[
                       styles.dot,
-                      password.length >= 6
-                        ? styles.dotValid
-                        : styles.dotInvalid,
+                      password.length >= 6 ? styles.dotValid : styles.dotInvalid,
                     ]}
                   />
                 )}
@@ -207,51 +186,55 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Error Message */}
+              {error && (
+                <Text style={styles.errorText}>{error}</Text>
+              )}
+
               {/* Login Button */}
               <TouchableOpacity
                 style={styles.button}
                 onPress={onLogin}
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? (
+                {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={styles.buttonText}>Access Yard</Text>
                 )}
               </TouchableOpacity>
+
               {/* Features Row */}
               <View style={styles.featuresRow}>
                 <View style={styles.iconItem}>
-                  <Icon name="users" size={18} color="#125e14ff" />
+                  <Icon name="users" size={18} color={Color.primary} />
                   <Text style={styles.iconText}>RBAC</Text>
                 </View>
                 <View style={styles.iconItem}>
-                   <Icon name="shield" size={18} color="#125e14ff" />
-                  
+                  <Icon name="shield" size={18} color={Color.primary} />
                   <Text style={styles.iconText}>Secure</Text>
                 </View>
                 <View style={styles.iconItem}>
-                  <Icon name="mobile" size={18} color="#125e14ff" />
+                  <Icon name="mobile" size={18} color={Color.primary} />
                   <Text style={styles.iconText}>Mobile</Text>
                 </View>
               </View>
             </View>
+
             {/* Footer Credit */}
             <Text style={styles.footerText}>
-              Designed & Developed by{" "}
-              <Text style={styles.footerLink}>
-                Object Technology Solutions
-              </Text>
+              Designed & Developed by{' '}
+              <Text style={styles.footerLink}>Object Technology Solutions</Text>
             </Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
       {/* Loading Overlay */}
-      {isLoading && (
+      {loading && (
         <View style={styles.loadingOverlay}>
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#4caf50" />
+            <ActivityIndicator size="large" color={Color.primary} />
             <Text style={styles.loadingText}>Accessing yard...</Text>
           </View>
         </View>
@@ -261,187 +244,181 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-
-
   flex: { flex: 1 },
-  backgroundImage: { flex: 1, width: "100%", height: DEVICE_HEIGHT },
+  backgroundImage: { flex: 1, width: '100%', height: DEVICE_HEIGHT },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  safeArea: { flex: 1, justifyContent: "center" },
+  safeArea: { flex: 1, justifyContent: 'center' },
   scroll: { padding: 24, paddingBottom: 40 },
-  logoSection: { alignItems: "center", marginBottom: 32, marginTop: 16 },
+  logoSection: { alignItems: 'center', marginBottom: 32, marginTop: 16 },
   logoBox: {
     width: 120,
     height: 120,
     borderRadius: 24,
-    // backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
     borderWidth: 0.01,
-    borderColor: "#fff",
+    borderColor: '#fff',
     elevation: 8,
   },
   logo: { width: 110, height: 110, borderRadius: 24 },
   appName: {
-    fontSize: 15,
-    color: "#02180fff",
-    fontWeight: "400",
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '600',
     letterSpacing: 1,
-    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
-  },
-  appSubtitle: {
-    fontSize: 16,
-    color: "rgba(255,255,255,0.9)",
-    marginVertical: 8,
   },
   divider: {
     width: 80,
     height: 3,
-    backgroundColor: "#8bc34a",
+    backgroundColor: Color.primary,
     borderRadius: 2,
     marginTop: 8,
   },
   card: {
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 28,
     padding: 24,
     elevation: 12,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
   },
   cardTitle: {
     fontSize: 24,
-    fontWeight: "bold",
-    color: "#2d5c3e",
+    fontWeight: 'bold',
+    color: Color.primary,
     marginBottom: 4,
-    textAlign: "center",
+    textAlign: 'center',
   },
   cardSubtitle: {
     fontSize: 14,
-    color: "rgba(45,92,62,0.7)",
+    color: 'rgba(46,139,87,0.7)',
     marginBottom: 16,
-    textAlign: "center",
+    textAlign: 'center',
   },
   label: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#2d5c3e",
-    textTransform: "uppercase",
+    fontWeight: '600',
+    color: Color.primary,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: "rgba(45,92,62,0.2)",
+    borderColor: 'rgba(46,139,87,0.2)',
     paddingHorizontal: 12,
     height: 48,
     marginBottom: 16,
   },
-  inputFocused: { borderColor: "#8bc34a", elevation: 6 },
-  input: { flex: 1, marginHorizontal: 8, fontSize: 16, color: "#333" },
+  inputFocused: { borderColor: Color.primary, elevation: 6 },
+  input: { flex: 1, marginHorizontal: 8, fontSize: 16, color: '#333' },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  dotValid: { backgroundColor: "#4caf50", marginRight: 12 },
-  dotInvalid: { backgroundColor: "#ff9800", marginRight: 12 },
+  dotValid: { backgroundColor: Color.success, marginRight: 12 },
+  dotInvalid: { backgroundColor: Color.warning, marginRight: 12 },
   optionsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   rememberContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   checkbox: {
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: "rgba(45,92,62,0.5)",
+    borderColor: 'rgba(46,139,87,0.5)',
     borderRadius: 4,
     marginRight: 8,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: "#4caf50",
-    borderColor: "#4caf50",
+    backgroundColor: Color.primary,
+    borderColor: Color.primary,
   },
   checkmark: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: 'bold',
   },
   rememberText: {
     fontSize: 14,
-    color: "#2d5c3e",
+    color: Color.primary,
   },
   forgot: {
     fontSize: 14,
-    color: "#4caf50",
-    fontWeight: "500",
+    color: Color.primary,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: Color.error,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   button: {
-    backgroundColor: "#4caf50",
+    backgroundColor: Color.primary,
     borderRadius: 18,
     height: 48,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginVertical: 16,
     elevation: 8,
   },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   featuresRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
     marginTop: 5,
   },
   iconItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   iconText: {
     fontSize: 12,
-    color: "#2d5c3e",
+    color: Color.primary,
     marginLeft: 6,
   },
   footerText: {
     fontSize: 12,
-    color: "rgba(45,92,62,0.8)",
-    textAlign: "center",
+    color: 'rgba(46,139,87,0.8)',
+    textAlign: 'center',
     marginTop: 16,
   },
   footerLink: {
-    color: "#4caf50",
-    fontWeight: "500",
+    color: Color.primary,
+    fontWeight: '500',
   },
-
-
-
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    margin:20
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 20,
   },
   loadingBox: {
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
-    alignItems: "center",
+    alignItems: 'center',
     elevation: 8,
-    
   },
-  loadingText: { marginTop: 12, color: "#0b632bff", fontSize: 16 },
+  loadingText: { marginTop: 12, color: Color.primary, fontSize: 16 },
 });

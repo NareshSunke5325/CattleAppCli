@@ -1,179 +1,194 @@
-import {useEffect, useState} from 'react';
-import { View, Text, ImageBackground, SafeAreaView, StyleSheet, TouchableOpacity, Dimensions, ScrollView, Alert } from "react-native";
-import { Color } from '../theme';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import React from 'react';
+import {
+  Alert,
+  Dimensions,
+  ImageBackground,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
-import { useAppDispatch, useAppSelector } from '../redux/store/store';
-import { Dropdown } from 'react-native-element-dropdown';
-import { getEmployeeProfile, getTechnologyList } from '../services/services.action';
-import { profile } from '../interfaces/profile';
-import { reset as resetUser} from '../redux/user.slice';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useAppDispatch, useAppSelector } from '../store/store';
+import { logout } from '../store/slices/authSlice';
+import { Color } from '../theme';
 
-const  DEVICE_HEIGHT = Dimensions.get('window').height
+const DEVICE_HEIGHT = Dimensions.get('window').height;
 
 export default function ProfileScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
-  const userDetails = useAppSelector((state) => state.user.details);
-  const [myProfile, setMyProfile] = useState<profile>({} as any);
-  // const myProfile = useAppSelector<profile>((state: any) => state.service.profile);
-  // console.log("myProfile Data:::::",myProfile);
+  const { user } = useAppSelector((state) => state.auth);
 
-
-  
-  function logoutCalled  () {
-    Alert.alert('', 'User Unautorized! Please logout and login', [
-      { text: 'Ok', onPress: () =>  {
-        dispatch(resetUser());
-        navigation.goBack();
-        navigation.goBack();
-      }},
-     // { text: 'No', onPress: () => null },
+  function logoutCalled() {
+    Alert.alert('', 'Are you sure you want to logout from Cattle Yard Management?', [
+      {
+        text: 'Yes',
+        onPress: () => {
+          dispatch(logout());
+          navigation.navigate('LoginScreen');
+        },
+      },
+      { text: 'No', onPress: () => null },
     ]);
-    
-  };
+  }
 
-  useEffect(() => {
-    const getProfileDetails = async () => {
-      const response = await dispatch(getEmployeeProfile(userDetails.employeeId));
-      console.log("employee responsepayload:::::",response.payload);
-      if(response.payload.MustChangePassword)
-        {
-          logoutCalled();
-          return;
-        }
-      if (response.payload) {
-        setMyProfile(response.payload)
-        }
-      }
-      getProfileDetails();
-  }, [])
-   return (
+  return (
     <ImageBackground
-        //source={require('../images/imageBG.png')}
-         style={{
-          flex:1,
-          backgroundColor:Color.bgColor,
+      style={{
+        flex: 1,
+        backgroundColor: Color.bgColor,
         justifyContent: 'flex-start',
-        height:DEVICE_HEIGHT,
-
-      }}>
-        <SafeAreaView style={[styles.container, styles.horizontal]}>
-          
-          <View style={{backgroundColor:Color.bgColor}}>
-        <View style={{ backgroundColor:Color.logoBlue3, justifyContent:'space-between',flexDirection:'row',alignItems:'center',height:40,borderBottomColor:'darkgray',borderBottomWidth:1,marginBottom:0}}>
-         <TouchableOpacity 
-           style={{width:'33%', paddingLeft:10,alignContent:'center',alignSelf:'center'}}
-           onPress={()=>{
-            //this.props.navigation.navigate('DrawerOpen');
-            navigation.dispatch(DrawerActions.openDrawer());
-          }}
+        height: DEVICE_HEIGHT,
+      }}
+    >
+      <SafeAreaView style={[styles.container, styles.horizontal]}>
+        <View style={{ backgroundColor: Color.bgColor }}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => {
+                navigation.dispatch(DrawerActions.openDrawer());
+              }}
             >
-           <Icon
-              name="menu"
-              color={'#fff'}
-              size={35}
-          />
+              <Icon name="menu" color={'#fff'} size={35} />
+            </TouchableOpacity>
+            <Text style={styles.subTitle}>Profile</Text>
+            <Text style={{ width: '33%' }}></Text>
+          </View>
+          <ScrollView style={{ height: DEVICE_HEIGHT - 88 }}>
+            <View style={styles.profileHeader}>
+              <Icon
+                style={styles.profileIcon}
+                name="person"
+                color={'black'}
+                size={100}
+              />
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>Yard Manager</Text>
+                <Text style={styles.profileEmail}>manager@cattleyard.com.au</Text>
+              </View>
+            </View>
 
-        </TouchableOpacity>
-            <Text style={styles.subTitle}>
-                Profile
-            </Text>
-         <Text style={{width:'33%'}}></Text>
-          </View>
-          <ScrollView style={{height:DEVICE_HEIGHT-88}}>
-          <View  
-          style={{backgroundColor:Color.logoBlue1,width:'100%',height:200,borderBottomColor:'lightgray',borderBottomWidth:1, paddingTop:20,justifyContent: 'space-between'}}>
-          <Icon
-              style={{alignSelf:'center',borderRadius:50,borderWidth:1}}
-              name="person"
-              color={"black"}
-              size={100}
-          />
-          <View style={{alignItems:'center',bottom:10}}>
-            <Text style={{fontSize:20,marginBottom:10, color:'#fff'}}>{userDetails.name}</Text>
-            <Text style={{fontSize:15, color:'#fff'}}>{userDetails.emailId}</Text>
-          </View>
-          
-          </View>
-          <View style={{left:'10%',alignItems:'center', marginTop:20,borderBottomWidth:0.5,borderBottomColor:'gray',paddingBottom:10,width:'80%'}}>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15,marginBottom:10}}>Employee Id : {myProfile.employeeId}</Text>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15}}>Date of Birth : {myProfile.dateOfBirth}</Text>
-          </View>
-          <View style={{left:'10%',alignItems:'center',marginTop:20,borderBottomWidth:0.5,borderBottomColor:'gray',paddingBottom:10,width:'80%'}}>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15,marginBottom:10}}>Phone Number : {myProfile.contactNumber}</Text>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15,marginBottom:10}}>Reporting Manager : {myProfile.reportingManager}</Text>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15}}>HRBP Name : {myProfile.hrbpName}</Text>
-          </View>
-          <View style={{left:'10%',alignItems:'center',marginTop:20,paddingBottom:10,width:'80%'}}>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15,marginBottom:10}}>Practice : {myProfile.practice}</Text>
-            <Text style={{color:Color.logoBlue4,fontWeight:'500',fontSize:15}}>Sub Practice: {myProfile.subPractice}</Text>
-          </View>
-          
+            <View style={styles.infoSection}>
+              <Text style={styles.infoText}>Employee ID: YM001</Text>
+              <Text style={styles.infoText}>Role: Livestock Coordinator</Text>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoText}>Phone: +61 400 123 456</Text>
+              <Text style={styles.infoText}>Location: NSW Regional Cattle Yard</Text>
+              <Text style={styles.infoText}>Start Date: 2023-01-15</Text>
+            </View>
+
+            <View style={styles.infoSection}>
+              <Text style={styles.infoText}>Department: Livestock Management</Text>
+              <Text style={styles.infoText}>Specialization: Cattle Operations</Text>
+            </View>
+
+            <TouchableOpacity style={styles.logoutButton} onPress={logoutCalled}>
+              <Icon name="logout" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
           </ScrollView>
-          </View>
-          
-          
-          </SafeAreaView>
+        </View>
+      </SafeAreaView>
     </ImageBackground>
-   );
- }
+  );
+}
 
- const styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     justifyContent: 'flex-start',
-    backgroundColor: Color.logoBlue3,
+    backgroundColor: Color.primary,
   },
   horizontal: {
     flexDirection: 'column',
-
   },
-  title: {
-      textAlign: 'center',
-      marginVertical: 8,
-      fontSize:60
-    },
-    subTitle: {
-      width:'34%',
-      textAlign: 'center',
-      fontSize:20,
-      color:'#fff'
-    },
-    dropdown: {
-      height: 50,
-      borderColor: 'gray',
-      borderWidth: 0.5,
-      borderRadius: 8,
-      paddingHorizontal: 8,
-    },
-    icon: {
-      marginRight: 5,
-    },
-    label: {
-      position: 'absolute',
-      backgroundColor: 'white',
-      left: 22,
-      top: 8,
-      zIndex: 999,
-      paddingHorizontal: 8,
-      fontSize: 14,
-      color:Color.logoBlue5,
-      fontWeight:'bold'
-    },
-    placeholderStyle: {
-      fontSize: 16,
-      color:Color.modalTitle,
-    },
-    selectedTextStyle: {
-      fontSize: 16,
-      color: Color.logoBlue5
-    },
-    iconStyle: {
-      width: 20,
-      height: 20,
-    },
-    inputSearchStyle: {
-      height: 40,
-      fontSize: 16,
-    },
+  header: {
+    backgroundColor: Color.primary,
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 40,
+    borderBottomColor: 'darkgray',
+    borderBottomWidth: 1,
+    marginBottom: 0,
+  },
+  headerButton: {
+    width: '33%',
+    paddingLeft: 10,
+    alignContent: 'center',
+    alignSelf: 'center',
+  },
+  subTitle: {
+    width: '34%',
+    textAlign: 'center',
+    fontSize: 20,
+    color: '#fff',
+  },
+  profileHeader: {
+    backgroundColor: Color.primaryLight,
+    width: '100%',
+    height: 200,
+    borderBottomColor: 'lightgray',
+    borderBottomWidth: 1,
+    paddingTop: 20,
+    justifyContent: 'space-between',
+  },
+  profileIcon: {
+    alignSelf: 'center',
+    borderRadius: 50,
+    borderWidth: 1,
+  },
+  profileInfo: {
+    alignItems: 'center',
+    bottom: 10,
+  },
+  profileName: {
+    fontSize: 20,
+    marginBottom: 10,
+    color: '#fff',
+  },
+  profileEmail: {
+    fontSize: 15,
+    color: '#fff',
+  },
+  infoSection: {
+    left: '10%',
+    alignItems: 'center',
+    marginTop: 20,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'gray',
+    paddingBottom: 10,
+    width: '80%',
+  },
+  infoText: {
+    color: Color.primary,
+    fontWeight: '500',
+    fontSize: 15,
+    marginBottom: 10,
+  },
+  logoutButton: {
+    backgroundColor: Color.error,
+    borderRadius: 12,
+    padding: 16,
+    margin: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

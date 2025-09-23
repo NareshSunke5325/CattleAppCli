@@ -1,67 +1,46 @@
-import {FC} from 'react';
-import MyTeams from '../components/MyTeams'
-import Dashboard from '../components/Dashboard'
-import ProfileScreen from '../components/ProfileScreen';
+import { FC } from 'react';
 import { DrawerNavigationOptions } from '@react-navigation/drawer';
-import About from '../components/About';
-import MySkills from '../components/MySkills';
-import MyLeaves from '../components/MyLeaves';
-
+import Dashboard from '../components/Dashboard';
+import YardsScreen from '../components/YardsScreen';
+import LivestockScreen from '../components/LivestockScreen';
+import ProfileScreen from '../components/ProfileScreen';
 
 interface Route {
   name: string;
   component: FC;
   options?: DrawerNavigationOptions;
-  iconName: string
+  iconName: string;
 }
+
 const options: DrawerNavigationOptions = {
   headerShown: false,
-  //gestureEnabled: true,
 };
-//Add your screen/page here
+
 const DrawerRoutesList: Array<Route> = [
   {
     name: 'Dashboard',
     component: Dashboard,
     options,
-    iconName: 'home'
+    iconName: 'dashboard',
   },
-  
   {
-    name: 'My Teams',
-    component: MyTeams,
+    name: 'Cattle Yards',
+    component: YardsScreen,
     options,
-    iconName: 'groups'
+    iconName: 'location-on',
   },
-  
   {
-    name: 'My Skills',
-    component: MySkills,
+    name: 'Livestock',
+    component: LivestockScreen,
     options,
-    iconName: 'moving'
+    iconName: 'pets',
   },
   {
-    name: 'My Leaves',
-    component: MyLeaves,
-    options,
-    iconName: 'work-off'
-  },
-  {
-    name: 'My Profile',
+    name: 'Profile',
     component: ProfileScreen,
     options,
-    iconName: 'person'
+    iconName: 'person',
   },
-  {
-    name: 'About',
-    component: About,
-    options,
-    iconName: 'info'
-  },
-  
-  
-  
-  
- 
 ];
+
 export default DrawerRoutesList;

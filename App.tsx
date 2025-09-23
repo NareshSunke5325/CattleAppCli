@@ -1,44 +1,31 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
 import React from 'react';
-import type {PropsWithChildren} from 'react';
 import {
-  Button,
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
+  TouchableOpacity,
   View,
   Dimensions,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItem, DrawerItemList } from '@react-navigation/drawer'
-
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-import {store, persistor, useAppSelector} from './src/redux/store/store';
+  createDrawerNavigator,
+  DrawerContentScrollView,
+  DrawerItemList,
+} from '@react-navigation/drawer';
+
+import { store, persistor, useAppSelector } from './src/store/store';
 import { Provider } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react'
+import { PersistGate } from 'redux-persist/integration/react';
 import DrawerRoutesList from './src/utils/drawerRoutes';
 import StackRoutesList from './src/utils/stackRoutes';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Color } from './src/theme';
-import { TouchableOpacity } from 'react-native-gesture-handler';
-import {LocaleConfig} from 'react-native-calendars';
+import { TouchableOpacity as GHTouchableOpacity } from 'react-native-gesture-handler';
 import moment from 'moment';
 
 const Stack = createStackNavigator();
@@ -46,38 +33,11 @@ const Drawer = createDrawerNavigator();
 const DEVICE_HEIGHT = Dimensions.get('window').height;
 const DEVICE_WIDTH = Dimensions.get('window').width;
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-LocaleConfig.locales['en'] = {
-  formatAccessibilityLabel: "dddd d 'of' MMMM 'of' yyyy",
-  monthNames: [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December'
-  ],
-  monthNamesShort: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
-  dayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-  dayNamesShort: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
-};
-LocaleConfig.defaultLocale = 'en';
-
 const DrawerNavigation = () => {
-  const userDetails = useAppSelector((state) => state.user.details);
   const navigation = useNavigation<any>();
-  
+
   return (
-    <Drawer.Navigator 
+    <Drawer.Navigator
       screenOptions={{
         drawerStyle: {
           backgroundColor: 'transparent',
@@ -85,7 +45,7 @@ const DrawerNavigation = () => {
         },
         overlayColor: 'rgba(0,0,0,0.5)',
         drawerType: 'slide',
-        drawerActiveTintColor: Color.logoBlue5,
+        drawerActiveTintColor: Color.primaryLight,
         drawerInactiveTintColor: 'rgba(255,255,255,0.8)',
         drawerLabelStyle: {
           fontSize: 16,
@@ -100,93 +60,78 @@ const DrawerNavigation = () => {
         },
         drawerActiveBackgroundColor: 'rgba(255,255,255,0.15)',
       }}
-      drawerContent={props => {
+      drawerContent={(props) => {
         return (
           <ImageBackground
-            source={{uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZ3JhZGllbnQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjMWU0MDc4IiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iNTAlIiBzdG9wLWNvbG9yPSIjMzc1M2E4IiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzEyNGU2NiIgc3RvcC1vcGFjaXR5PSIxIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9InVybCgjZ3JhZGllbnQpIiAvPgo8L3N2Zz4K'}}
+            source={{
+              uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZ3JhZGllbnQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjMmU4YjU3IiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iNTAlIiBzdG9wLWNvbG9yPSIjNGNhZjUwIiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzFmNWYzZiIgc3RvcC1vcGFjaXR5PSIxIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9InVybCgjZ3JhZGllbnQpIiAvPgo8L3N2Zz4K',
+            }}
             style={{ flex: 1 }}
           >
-            {/* Gradient Overlay */}
-            <View style={{
-              ...StyleSheet.absoluteFillObject,
-              backgroundColor: Color.logoBlue3 ,
-            }} />
-            
-            <SafeAreaView style={{flex: 0, backgroundColor: 'transparent'}}/>
-            <SafeAreaView style={{flex: 1, backgroundColor: 'transparent'}}>
-              <DrawerContentScrollView 
-                contentContainerStyle={{paddingTop: 0}} 
-                style={{backgroundColor: 'transparent'}} 
-                {...props} 
+            <View
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: Color.primary,
+              }}
+            />
+
+            <SafeAreaView style={{ flex: 0, backgroundColor: 'transparent' }} />
+            <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+              <DrawerContentScrollView
+                contentContainerStyle={{ paddingTop: 0 }}
+                style={{ backgroundColor: 'transparent' }}
+                {...props}
                 scrollIndicatorInsets={{ right: 1 }}
                 showsVerticalScrollIndicator={false}
               >
-                
                 {/* Enhanced Profile Header */}
-                <TouchableOpacity  
-                  activeOpacity={0.8} 
+                <GHTouchableOpacity
+                  activeOpacity={0.8}
                   onPress={() => navigation.navigate('Profile')}
                   style={drawerStyles.profileContainer}
                 >
-                  {/* Background Pattern */}
                   <View style={drawerStyles.profileBackgroundPattern} />
-                  
-                  {/* Profile Content */}
+
                   <View style={drawerStyles.profileContent}>
-                    
                     {/* Avatar Section */}
                     <View style={drawerStyles.avatarContainer}>
                       <View style={drawerStyles.avatarWrapper}>
                         <View style={drawerStyles.avatar}>
-                          <Text style={drawerStyles.avatarText}>
-                            {userDetails.name?.charAt(0) || 'U'}
-                          </Text>
+                          <Text style={drawerStyles.avatarText}>M</Text>
                         </View>
-                        
-                        {/* Online Status Indicator */}
                         <View style={drawerStyles.onlineIndicator} />
                       </View>
                     </View>
 
                     {/* User Info */}
                     <View style={drawerStyles.userInfoContainer}>
-                      <Text style={drawerStyles.userName}>
-                        {userDetails.name || 'User Name'}
-                      </Text>
-                      <Text style={drawerStyles.userEmail}>
-                        {userDetails.emailId || 'user@email.com'}
-                      </Text>
-                      
-                      {/* User Role Badge */}
+                      <Text style={drawerStyles.userName}>Yard Manager</Text>
+                      <Text style={drawerStyles.userEmail}>manager@cattleyard.com.au</Text>
+
                       <View style={drawerStyles.roleBadge}>
                         <Icon name="verified-user" size={12} color="white" />
-                        <Text style={drawerStyles.roleText}>Employee</Text>
+                        <Text style={drawerStyles.roleText}>Manager</Text>
                       </View>
                     </View>
 
                     {/* Profile Stats */}
                     <View style={drawerStyles.profileStats}>
                       <View style={drawerStyles.statItem}>
-                        <Text style={drawerStyles.statValue}>
-                          {moment().format('MMM DD')}
-                        </Text>
+                        <Text style={drawerStyles.statValue}>{moment().format('MMM DD')}</Text>
                         <Text style={drawerStyles.statLabel}>Today</Text>
                       </View>
                       <View style={drawerStyles.statDivider} />
                       <View style={drawerStyles.statItem}>
-                        <Text style={drawerStyles.statValue}>
-                          {moment().format('ddd')}
-                        </Text>
+                        <Text style={drawerStyles.statValue}>{moment().format('ddd')}</Text>
                         <Text style={drawerStyles.statLabel}>Day</Text>
                       </View>
                     </View>
                   </View>
 
-                  {/* Profile Arrow Indicator */}
                   <View style={drawerStyles.profileArrow}>
                     <Icon name="keyboard-arrow-right" size={24} color="rgba(255,255,255,0.7)" />
                   </View>
-                </TouchableOpacity>
+                </GHTouchableOpacity>
 
                 {/* Navigation Section Header */}
                 <View style={drawerStyles.navigationHeader}>
@@ -203,22 +148,17 @@ const DrawerNavigation = () => {
                 {/* App Info Footer */}
                 <View style={drawerStyles.footerContainer}>
                   <View style={drawerStyles.footerDivider} />
-                  
+
                   <View style={drawerStyles.appInfoContainer}>
                     <View style={drawerStyles.appIconContainer}>
-                      <Icon name="business" size={24} color="rgba(255,255,255,0.8)" />
+                      <Icon name="agriculture" size={24} color="rgba(255,255,255,0.8)" />
                     </View>
                     <View>
-                      <Text style={drawerStyles.appName}>
-                        Employee Work Log
-                      </Text>
-                      <Text style={drawerStyles.appVersion}>
-                        Version 1.0.0
-                      </Text>
+                      <Text style={drawerStyles.appName}>Cattle Yard Management</Text>
+                      <Text style={drawerStyles.appVersion}>Version 1.0.0</Text>
                     </View>
                   </View>
 
-                  {/* Quick Actions */}
                   <View style={drawerStyles.quickActionsContainer}>
                     <TouchableOpacity style={drawerStyles.quickActionButton}>
                       <Icon name="help-outline" size={20} color="rgba(255,255,255,0.7)" />
@@ -231,43 +171,43 @@ const DrawerNavigation = () => {
                     </TouchableOpacity>
                   </View>
 
-                  {/* Copyright */}
                   <Text style={drawerStyles.copyrightText}>
                     © {moment().format('YYYY')} All rights reserved
                   </Text>
                 </View>
-
               </DrawerContentScrollView>
             </SafeAreaView>
           </ImageBackground>
-        )
+        );
       }}
     >
       <Drawer.Group>
         {DrawerRoutesList.map((route, i) => {
-          const {name, component, options, iconName} = route;
+          const { name, component, options, iconName } = route;
           return (
-            <Drawer.Screen  
+            <Drawer.Screen
               options={{
                 ...options,
-                drawerIcon: (({focused, color}) => (
-                  <View style={[
-                    drawerStyles.drawerIconContainer,
-                    { backgroundColor: focused ? 'rgba(255,255,255,0.1)' : 'transparent' }
-                  ]}>
-                    <Icon 
-                      name={iconName} 
-                      size={24} 
-                      color={focused ? Color.logoBlue5 : 'rgba(255,255,255,0.8)'} 
+                drawerIcon: ({ focused, color }) => (
+                  <View
+                    style={[
+                      drawerStyles.drawerIconContainer,
+                      { backgroundColor: focused ? 'rgba(255,255,255,0.1)' : 'transparent' },
+                    ]}
+                  >
+                    <Icon
+                      name={iconName}
+                      size={24}
+                      color={focused ? Color.primaryLight : 'rgba(255,255,255,0.8)'}
                     />
                   </View>
-                ))
-              }} 
-              key={i} 
-              name={name} 
+                ),
+              }}
+              key={i}
+              name={name}
               component={component}
             />
-          )
+          );
         })}
       </Drawer.Group>
     </Drawer.Navigator>
@@ -275,27 +215,17 @@ const DrawerNavigation = () => {
 };
 
 function App(): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
   return (
     <Provider store={store}>
-      <PersistGate 
+      <PersistGate
         loading={
           <View style={loadingStyles.container}>
             <View style={loadingStyles.loadingCard}>
               <View style={loadingStyles.logoContainer}>
-                <Icon name="business" size={60} color={Color.logoBlue4} />
+                <Icon name="agriculture" size={60} color={Color.primary} />
               </View>
-              <Text style={loadingStyles.loadingTitle}>
-                Employee Work Log
-              </Text>
-              <Text style={loadingStyles.loadingSubtitle}>
-                Loading your workspace...
-              </Text>
+              <Text style={loadingStyles.loadingTitle}>Cattle Yard Management</Text>
+              <Text style={loadingStyles.loadingSubtitle}>Loading your workspace...</Text>
               <View style={loadingStyles.loadingIndicator}>
                 <View style={loadingStyles.loadingDot} />
                 <View style={[loadingStyles.loadingDot, { animationDelay: '0.2s' }]} />
@@ -303,21 +233,17 @@ function App(): JSX.Element {
               </View>
             </View>
           </View>
-        } 
+        }
         persistor={persistor}
       >
-        
-        <StatusBar 
-          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-          backgroundColor={Color.logoBlue3}
-        />
-        
+        <StatusBar barStyle="light-content" backgroundColor={Color.primary} />
+
         <NavigationContainer>
-          <Stack.Navigator 
+          <Stack.Navigator
             initialRouteName="LoginScreen"
             screenOptions={{
               headerStyle: {
-                backgroundColor: Color.logoBlue3,
+                backgroundColor: Color.primary,
                 elevation: 8,
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 2 },
@@ -335,15 +261,10 @@ function App(): JSX.Element {
           >
             <Stack.Group>
               {StackRoutesList.map((route, i) => {
-                const {name, component, options} = route;
+                const { name, component, options } = route;
                 return (
-                  <Stack.Screen 
-                    options={options} 
-                    key={i} 
-                    name={name} 
-                    component={component}
-                  />
-                )
+                  <Stack.Screen options={options} key={i} name={name} component={component} />
+                );
               })}
               <Stack.Screen
                 name="Home"
@@ -353,7 +274,6 @@ function App(): JSX.Element {
             </Stack.Group>
           </Stack.Navigator>
         </NavigationContainer>
-        
       </PersistGate>
     </Provider>
   );
@@ -361,7 +281,7 @@ function App(): JSX.Element {
 
 const drawerStyles = StyleSheet.create({
   profileContainer: {
-     backgroundColor: 'rgba(4, 63, 58, 0.08)',
+    backgroundColor: 'rgba(76, 175, 80, 0.08)',
     marginHorizontal: 12,
     marginVertical: 16,
     borderRadius: 20,
@@ -372,7 +292,6 @@ const drawerStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 4,
-    // elevation: 8,
   },
   profileBackgroundPattern: {
     position: 'absolute',
@@ -573,7 +492,7 @@ const loadingStyles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Color.logoBlue3,
+    backgroundColor: Color.primary,
   },
   loadingCard: {
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -591,7 +510,7 @@ const loadingStyles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(15, 52, 96, 0.1)',
+    backgroundColor: 'rgba(46, 139, 87, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -599,13 +518,13 @@ const loadingStyles = StyleSheet.create({
   loadingTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: Color.logoBlue4,
+    color: Color.primary,
     textAlign: 'center',
     marginBottom: 8,
   },
   loadingSubtitle: {
     fontSize: 16,
-    color: 'rgba(15, 52, 96, 0.7)',
+    color: 'rgba(46, 139, 87, 0.7)',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -617,28 +536,8 @@ const loadingStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Color.logoBlue4,
+    backgroundColor: Color.primary,
     marginHorizontal: 4,
-    // Note: CSS animations would need to be replaced with Animated API in React Native
-  },
-});
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
   },
 });
 
