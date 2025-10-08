@@ -13,10 +13,51 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import { Color } from '../theme';
+// Custom date picker implementation to avoid the dismiss error
+const useCustomDatePicker = () => {
+  const [showPicker, setShowPicker] = useState<'start' | 'end' | null>(null);
+  const [tempDate, setTempDate] = useState<Date>(new Date());
 
+  const showDatePicker = (type: 'start' | 'end', currentDate: Date) => {
+    setTempDate(currentDate);
+    setShowPicker(type);
+  };
+
+  const hideDatePicker = () => {
+    setShowPicker(null);
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    // On Android, we need to handle this differently to avoid the dismiss error
+    if (Platform.OS === 'android') {
+      if (event.type === 'dismissed') {
+        hideDatePicker();
+        return;
+      }
+    }
+
+    if (selectedDate) {
+      setTempDate(selectedDate);
+    }
+  };
+
+  const confirmSelection = (currentDate: Date, onConfirm: (date: Date) => void) => {
+    onConfirm(currentDate);
+    hideDatePicker();
+  };
+
+  return {
+    showPicker,
+    tempDate,
+    showDatePicker,
+    hideDatePicker,
+    onDateChange,
+    confirmSelection,
+  };
+};
+
+import { Color } from '../theme';
 import { useAppDispatch, useAppSelector } from '../store/store';
-import { Calendar } from 'react-native-calendars';
 
 interface Herd {
   herdType: string;
@@ -55,8 +96,6 @@ export default function BookingModal({
   const { accessToken } = useAppSelector((state) => state.auth);
   
   const [loading, setLoading] = useState(false);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   
   const [formData, setFormData] = useState({
     contactName: '',
@@ -72,6 +111,9 @@ export default function BookingModal({
   ]);
 
   const [selectedFeedType, setSelectedFeedType] = useState('PELLETS');
+
+  // Use our custom date picker hook
+  const datePicker = useCustomDatePicker();
 
   useEffect(() => {
     // Update all herds with selected feed type
@@ -114,35 +156,90 @@ export default function BookingModal({
     }
   };
 
-  // Date picker functions using react-native-date-picker
-  const showStartPicker = () => {
-    setShowStartDatePicker(true);
-    setShowEndDatePicker(false);
-  };
-
-  const showEndPicker = () => {
-    setShowEndDatePicker(true);
-    setShowStartDatePicker(false);
-  };
-
+  // Date handling functions
   const handleStartDateConfirm = (date: Date) => {
     setFormData(prev => ({ 
       ...prev, 
       startTime: date,
-      // Auto-adjust end time to be 2 hours after start time
       endTime: new Date(date.getTime() + 2 * 60 * 60 * 1000)
     }));
-    setShowStartDatePicker(false);
   };
 
   const handleEndDateConfirm = (date: Date) => {
     setFormData(prev => ({ ...prev, endTime: date }));
-    setShowEndDatePicker(false);
   };
 
-  const handleDateCancel = () => {
-    setShowStartDatePicker(false);
-    setShowEndDatePicker(false);
+  const showStartDatePicker = () => {
+    datePicker.showDatePicker('start', formData.startTime);
+  };
+
+  const showEndDatePicker = () => {
+    datePicker.showDatePicker('end', formData.endTime);
+  };
+
+  // Manual date input as fallback
+  const showManualDateInput = (type: 'start' | 'end') => {
+    const currentDate = type === 'start' ? formData.startTime : formData.endTime;
+    const currentDateStr = formatDateForInput(currentDate);
+    
+    Alert.prompt(
+      `Enter ${type} date and time`,
+      'Format: DD-MM-YYYY HH:MM (e.g., 25-12-2024 14:30)',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'OK',
+          onPress: (input) => {
+            if (input) {
+              try {
+                const parsedDate = parseManualDate(input);
+                if (parsedDate) {
+                  if (type === 'start') {
+                    handleStartDateConfirm(parsedDate);
+                  } else {
+                    handleEndDateConfirm(parsedDate);
+                  }
+                } else {
+                  Alert.alert('Error', 'Invalid date format. Please use DD-MM-YYYY HH:MM');
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Invalid date format. Please use DD-MM-YYYY HH:MM');
+              }
+            }
+          }
+        }
+      ],
+      'plain-text',
+      currentDateStr
+    );
+  };
+
+  const parseManualDate = (input: string): Date | null => {
+    try {
+      const [datePart, timePart] = input.split(' ');
+      if (!datePart || !timePart) return null;
+      
+      const [day, month, year] = datePart.split('-').map(Number);
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      if (!day || !month || !year || hours === undefined || minutes === undefined) {
+        return null;
+      }
+      
+      return new Date(year, month - 1, day, hours, minutes);
+    } catch {
+      return null;
+    }
+  };
+
+  const formatDateForInput = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
   };
 
   const handleSubmit = async () => {
@@ -174,7 +271,7 @@ export default function BookingModal({
       const payload = {
         yardIds,
         herds: herds.filter(herd => herd.headCount > 0),
-        requestedDecks: Math.ceil(totalHeads / 10).toString(), // Assuming 10 animals per deck
+        requestedDecks: Math.ceil(totalHeads / 10).toString(),
         requestedHeadCount: totalHeads,
         contactName: formData.contactName,
         contactPhone: formData.contactPhone,
@@ -235,13 +332,51 @@ export default function BookingModal({
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-GB') + ' ' + date.toLocaleTimeString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
   };
 
-  const estimatedCost = calculateTotalHeads() * 10.33; // Example calculation
+  const estimatedCost = calculateTotalHeads() * 10.33;
+
+  // Render date selection with manual input as primary option
+  const renderDateSelection = () => {
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Timing</Text>
+        
+        {/* Start Time */}
+        <View style={styles.dateRow}>
+          <TouchableOpacity 
+            style={styles.dateButton}
+            onPress={() => showManualDateInput('start')}
+          >
+            <Text style={styles.dateButtonText}>Start: {formatDate(formData.startTime)}</Text>
+            <Text style={styles.dateHintText}>Tap to change</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* End Time */}
+        <View style={styles.dateRow}>
+          <TouchableOpacity 
+            style={styles.dateButton}
+            onPress={() => showManualDateInput('end')}
+          >
+            <Text style={styles.dateButtonText}>End: {formatDate(formData.endTime)}</Text>
+            <Text style={styles.dateHintText}>Tap to change</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.manualDateHint}>
+          💡 Using manual input to avoid date picker issues
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <Modal
@@ -318,50 +453,8 @@ export default function BookingModal({
             </ScrollView>
           </View>
 
-          {/* Timing */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Timing</Text>
-            <TouchableOpacity 
-              style={styles.dateButton}
-              onPress={showStartPicker}
-            >
-              <Text style={styles.dateButtonText}>Start: {formatDate(formData.startTime)}</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.dateButton}
-              onPress={showEndPicker}
-            >
-              <Text style={styles.dateButtonText}>End: {formatDate(formData.endTime)}</Text>
-            </TouchableOpacity>
-
-            {/* Date Pickers */}
-            <Calendar
-              modal
-              open={showStartDatePicker}
-              date={formData.startTime}
-              mode="datetime"
-              onConfirm={handleStartDateConfirm}
-              onCancel={handleDateCancel}
-              title="Select Start Time"
-              confirmText="Confirm"
-              cancelText="Cancel"
-              minimumDate={new Date()}
-            />
-
-            <Calendar 
-              modal
-              open={showEndDatePicker}
-              date={formData.endTime}
-              mode="datetime"
-              onConfirm={handleEndDateConfirm}
-              onCancel={handleDateCancel}
-              title="Select End Time"
-              confirmText="Confirm"
-              cancelText="Cancel"
-              minimumDate={formData.startTime}
-            />
-          </View>
+          {/* Timing Section */}
+          {renderDateSelection()}
 
           {/* Herds */}
           <View style={styles.section}>
@@ -550,16 +643,31 @@ const styles = StyleSheet.create({
   feedTypeTextSelected: {
     color: '#fff',
   },
+  dateRow: {
+    marginBottom: 12,
+  },
   dateButton: {
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
-    marginBottom: 8,
   },
   dateButtonText: {
     fontSize: 16,
     color: Color.textPrimary,
+    fontWeight: '500',
+  },
+  dateHintText: {
+    fontSize: 12,
+    color: Color.textLight,
+    marginTop: 4,
+  },
+  manualDateHint: {
+    fontSize: 12,
+    color: Color.textLight,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
   },
   herdRow: {
     flexDirection: 'row',

@@ -132,6 +132,39 @@ const yardsSlice = createSlice({
   name: 'yards',
   initialState,
   reducers: {
+    // Reset the entire yards slice to initial state
+    resetYards: (state) => {
+      // Reset all state to initial values
+      state.yards = [];
+      state.loading = false;
+      state.error = null;
+      state.totalPages = 0;
+      state.currentPage = 0;
+      state.totalElements = 0;
+      state.pageSize = 9;
+      
+      // Clear cached data from AsyncStorage
+      // Note: This is async but we don't need to wait for it
+      const clearAsyncStorage = async () => {
+        try {
+          // Get all keys from AsyncStorage
+          const keys = await AsyncStorage.getAllKeys();
+          
+          // Filter keys related to yards
+          const yardKeys = keys.filter(key => key.startsWith('yards_page_'));
+          
+          // Remove all yard-related keys
+          if (yardKeys.length > 0) {
+            await AsyncStorage.multiRemove(yardKeys);
+          }
+          console.log('🗑️ Cleared yards data from AsyncStorage');
+        } catch (error) {
+          console.error('❌ Error clearing yards AsyncStorage:', error);
+        }
+      };
+      
+      clearAsyncStorage();
+    },
     clearYards: (state) => {
       state.yards = [];
       state.error = null;
@@ -191,5 +224,11 @@ const yardsSlice = createSlice({
   },
 });
 
-export const { clearYards, updateYardStatus, clearYardsList } = yardsSlice.actions;
+export const { 
+  resetYards, // Add this export
+  clearYards, 
+  updateYardStatus, 
+  clearYardsList 
+} = yardsSlice.actions;
+
 export default yardsSlice.reducer;

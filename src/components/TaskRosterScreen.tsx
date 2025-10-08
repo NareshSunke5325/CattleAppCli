@@ -1,4 +1,4 @@
-// Updated TaskRosterScreen.tsx
+// Updated TaskRosterScreen.tsx with proper pagination
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -13,8 +13,9 @@ import {
   Animated,
   Easing,
   RefreshControl,
+  ScrollView,
 } from 'react-native';
-import { DrawerActions, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import NetInfo from '@react-native-community/netinfo';
 import { useAppDispatch, useAppSelector } from '../store/store';
@@ -22,6 +23,73 @@ import { Color } from '../theme';
 import { fetchProgressStats, fetchTasks, loadCachedTasks } from '../store/slices/rosterSlice';
 
 const { width } = Dimensions.get('window');
+
+// --- Loading Overlay with Task Theme ---
+const LoadingOverlay = ({ isConnected }: { isConnected: boolean | null }) => (
+  <View style={styles.loadingOverlay}>
+    <View style={styles.loadingContent}>
+      {/* Task-themed icon */}
+      <View style={styles.taskIconContainer}>
+        <Icon name="assignment" size={48} color={Color.primary} />
+        <View style={styles.iconPulse} />
+      </View>
+      <Text style={styles.loadingText}>Loading Tasks Rosters</Text>
+      <Text style={styles.loadingSubtext}>
+        {isConnected === false ? 'Offline - loading cached data' : 'Preparing your tasks...'}
+      </Text>
+      <ActivityIndicator size="large" color={Color.primary} style={styles.loadingSpinner} />
+    </View>
+  </View>
+);
+
+// --- Updated Filter Tabs with Horizontal Scroll ---
+const FilterTabs = ({ 
+  selectedFilter, 
+  setSelectedFilter, 
+  fadeAnim 
+}: { 
+  selectedFilter: string; 
+  setSelectedFilter: (filter: string) => void;
+  fadeAnim: Animated.Value;
+}) => {
+  const filterOptions = [
+    { key: 'All', label: 'All' },
+    { key: 'Pending', label: 'Pending' },
+    { key: 'Running', label: 'Running' },
+    { key: 'Done', label: 'Done' }
+  ];
+
+  return (
+    <Animated.View style={[styles.filterContainer, { opacity: fadeAnim }]}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterScrollContent}
+      >
+        {filterOptions.map((filter) => (
+          <TouchableOpacity
+            key={filter.key}
+            style={[
+              styles.filterTab,
+              selectedFilter === filter.key && styles.filterTabActive
+            ]}
+            onPress={() => setSelectedFilter(filter.key)}
+          >
+            <Text style={[
+              styles.filterText,
+              selectedFilter === filter.key && styles.filterTextActive
+            ]} numberOfLines={1}>
+              {filter.label}
+            </Text>
+            {selectedFilter === filter.key && (
+              <View style={styles.filterIndicator} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </Animated.View>
+  );
+};
 
 const TaskRosterScreen = () => {
   const navigation = useNavigation();
@@ -37,6 +105,7 @@ const TaskRosterScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -55,8 +124,6 @@ const TaskRosterScreen = () => {
     LOW: '#10B981'
   };
 
-  const filterOptions = ['All', 'Pending', 'Running', 'Done'];
-
   // Network connectivity detection
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
@@ -72,7 +139,7 @@ const TaskRosterScreen = () => {
     return () => unsubscribe();
   }, [isConnected, tasks.length]);
 
-  // Optimized data loading strategy
+  // Optimized data loading strategy with loading overlay
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
@@ -81,41 +148,48 @@ const TaskRosterScreen = () => {
         if (!isActive) return;
 
         try {
-          setIsInitialLoad(true);
-          
-          // Step 1: Immediately load cached data (instant display)
-          console.log('📱 Loading cached tasks...');
-          await dispatch(loadCachedTasks());
-          
-          if (isActive) {
-            setIsInitialLoad(false);
-            startEntranceAnimations();
-          }
+          setShowLoadingOverlay(true);
 
-          // Step 2: Check network and sync in background
           const netState = await NetInfo.fetch();
           const connected = netState.isConnected ?? false;
-          
-          if (connected && isActive) {
-            console.log('🌐 Online - starting background sync...');
-            handleBackgroundSync();
-          } else if (isActive) {
-            console.log('📴 Offline - using cached data only');
+
+          if (connected) {
+            console.log("🌐 Online - fetching tasks...");
+            await Promise.all([
+              dispatch(fetchProgressStats()),
+              dispatch(fetchTasks({ page: 0, size: pageSizeLocal }))
+            ]);
+          } else {
+            console.log("📴 Offline - loading cached tasks...");
+            await dispatch(loadCachedTasks());
           }
-        } catch (error) {
-          console.log('❌ Error loading data:', error);
+
           if (isActive) {
             setIsInitialLoad(false);
+            // Start animations immediately, then hide loading overlay
+            startEntranceAnimations();
+            
+            // Delay hiding the loading overlay to ensure animations are visible
+            setTimeout(() => {
+              setShowLoadingOverlay(false);
+            }, 600);
+          }
+        } catch (error) {
+          console.log("❌ Error loading tasks:", error);
+          if (isActive) {
+            // fallback to cache if fetch fails
+            await dispatch(loadCachedTasks());
+            setIsInitialLoad(false);
+            startEntranceAnimations();
+            setShowLoadingOverlay(false);
           }
         }
       };
 
       loadData();
 
-      return () => {
-        isActive = false;
-      };
-    }, [dispatch])
+      return () => { isActive = false };
+    }, [dispatch, pageSizeLocal])
   );
 
   // Background sync function
@@ -158,6 +232,8 @@ const TaskRosterScreen = () => {
         dispatch(fetchProgressStats()),
         dispatch(fetchTasks({ page: localCurrentPage, size: pageSizeLocal }))
       ]);
+      // Restart animations after refresh
+      startEntranceAnimations();
     } catch (error) {
       console.log('Refresh failed:', error);
       Alert.alert('Sync Failed', 'Unable to refresh data. Please check your connection.');
@@ -166,35 +242,50 @@ const TaskRosterScreen = () => {
     }
   };
 
-  // Page change handler
+  // Fixed Page change handler
   const handlePageChange = async (page: number) => {
     if (!isConnected) {
       Alert.alert('Offline', 'Pagination requires internet connection.');
       return;
     }
 
+    setShowLoadingOverlay(true);
     try {
+      console.log(`📄 Changing to page: ${page}`);
       await dispatch(fetchTasks({ page, size: pageSizeLocal }));
       setLocalCurrentPage(page);
+      
+      // Start animations and then hide loading overlay
+      startEntranceAnimations();
+      setTimeout(() => {
+        setShowLoadingOverlay(false);
+      }, 600);
     } catch (error) {
-      console.log('Page change failed:', error);
+      console.log('❌ Page change failed:', error);
       Alert.alert('Error', 'Failed to load page. Please try again.');
+      setShowLoadingOverlay(false);
     }
   };
 
   // Sync local page state with Redux state
   useEffect(() => {
+    console.log(`🔄 Syncing local page state: Redux currentPage = ${currentPage}`);
     setLocalCurrentPage(currentPage);
   }, [currentPage]);
 
   // Start animations when we have tasks
   useEffect(() => {
-    if (!isInitialLoad && tasks.length > 0) {
+    if (!isInitialLoad && tasks.length > 0 && !showLoadingOverlay) {
       startEntranceAnimations();
     }
-  }, [isInitialLoad, tasks]);
+  }, [isInitialLoad, tasks, showLoadingOverlay]);
 
   const startEntranceAnimations = () => {
+    // Reset animations first
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.8);
+    cardAnimations.forEach(anim => anim.setValue(0));
+
     // Header scale animation
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -211,7 +302,7 @@ const TaskRosterScreen = () => {
       useNativeDriver: true,
     }).start();
 
-    // Faster staggered card animations
+    // Staggered card animations
     cardAnimations.forEach((anim, index) => {
       if (index < Math.min(tasks.length, 6)) {
         Animated.timing(anim, {
@@ -427,36 +518,12 @@ const TaskRosterScreen = () => {
     );
   };
 
-  const FilterTabs = () => (
-    <Animated.View style={[styles.filterContainer, { opacity: fadeAnim }]}>
-      {filterOptions.map((filter) => (
-        <TouchableOpacity
-          key={filter}
-          style={[
-            styles.filterTab,
-            selectedFilter === filter && styles.filterTabActive
-          ]}
-          onPress={() => setSelectedFilter(filter)}
-        >
-          <Text style={[
-            styles.filterText,
-            selectedFilter === filter && styles.filterTextActive
-          ]}>
-            {filter}
-          </Text>
-          {selectedFilter === filter && (
-            <View style={styles.filterIndicator} />
-          )}
-        </TouchableOpacity>
-      ))}
-    </Animated.View>
-  );
-
+  // Fixed Pagination Component
   const Pagination = () => (
     <Animated.View style={[styles.pagination, { opacity: fadeAnim }]}>
       <TouchableOpacity
         style={[styles.pageButton, localCurrentPage === 0 && styles.pageButtonDisabled]}
-        onPress={() => localCurrentPage > 0 && handlePageChange(localCurrentPage - 1)}
+        onPress={() => handlePageChange(localCurrentPage - 1)}
         disabled={localCurrentPage === 0 || !isConnected}
       >
         <Icon name="chevron-left" size={20} color={localCurrentPage === 0 || !isConnected ? '#9CA3AF' : Color.primary} />
@@ -464,10 +531,10 @@ const TaskRosterScreen = () => {
 
       <View style={styles.pageInfo}>
         <Text style={styles.pageText}>
-          Page {localCurrentPage + 1} of {totalPages || 1}
+          Page {localCurrentPage + 1} of {Math.max(totalPages, 1)}
         </Text>
         <Text style={styles.pageSizeText}>
-          Showing {tasks.length} of {totalElements} tasks
+          Showing {filteredTasks.length} of {totalElements} tasks
         </Text>
         {!isConnected && (
           <Text style={styles.offlineText}>Offline Mode</Text>
@@ -475,11 +542,11 @@ const TaskRosterScreen = () => {
       </View>
 
       <TouchableOpacity
-        style={[styles.pageButton, (localCurrentPage === (totalPages - 1) || !isConnected) && styles.pageButtonDisabled]}
-        onPress={() => localCurrentPage < (totalPages - 1) && handlePageChange(localCurrentPage + 1)}
-        disabled={localCurrentPage === (totalPages - 1) || !isConnected}
+        style={[styles.pageButton, (localCurrentPage >= (totalPages - 1) || !isConnected) && styles.pageButtonDisabled]}
+        onPress={() => handlePageChange(localCurrentPage + 1)}
+        disabled={localCurrentPage >= (totalPages - 1) || !isConnected}
       >
-        <Icon name="chevron-right" size={20} color={localCurrentPage === (totalPages - 1) || !isConnected ? '#9CA3AF' : Color.primary} />
+        <Icon name="chevron-right" size={20} color={localCurrentPage >= (totalPages - 1) || !isConnected ? '#9CA3AF' : Color.primary} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -520,21 +587,13 @@ const TaskRosterScreen = () => {
     </View>
   );
 
-  // Show loading only for initial load with no cached data
-  if (isInitialLoad && tasks.length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Color.primary} />
-        <Text style={styles.loadingText}>Loading your tasks...</Text>
-        <Text style={styles.loadingSubtext}>
-          {isConnected === false ? 'Offline - loading cached data' : 'Preparing your tasks...'}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Loading Overlay with Task Theme */}
+      {showLoadingOverlay && (
+        <LoadingOverlay isConnected={isConnected} />
+      )}
+
       {/* Header */}
       <Animated.View style={[styles.header, getHeaderTransform()]}>
         <TouchableOpacity
@@ -559,7 +618,11 @@ const TaskRosterScreen = () => {
       {/* <NetworkStatus /> */}
 
       {/* Filter Tabs */}
-      <FilterTabs />
+      <FilterTabs 
+        selectedFilter={selectedFilter} 
+        setSelectedFilter={setSelectedFilter} 
+        fadeAnim={fadeAnim} 
+      />
 
       {/* Tasks List */}
       <Animated.View style={[styles.listContainer, { opacity: fadeAnim }]}>
@@ -569,6 +632,11 @@ const TaskRosterScreen = () => {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <Text style={styles.sectionTitle}>
+              All Tasks ({filteredTasks.length})
+            </Text>
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="assignment" size={48} color="#D1D5DB" />
@@ -593,7 +661,7 @@ const TaskRosterScreen = () => {
       </Animated.View>
 
       {/* Pagination */}
-      <Pagination />
+      {totalPages > 1 && <Pagination />}
 
       {/* Add Roster Floating Button */}
       <TouchableOpacity
@@ -614,24 +682,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
+  // Loading Overlay Styles
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(249, 250, 251, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 20,
+    zIndex: 1000,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  taskIconContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  iconPulse: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    backgroundColor: '#10B98120',
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: '#10B98140',
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '600',
+    fontSize: 18,
+    color: Color.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   loadingSubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#6B7280',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
   },
   header: {
     backgroundColor: Color.primary,
@@ -700,14 +797,13 @@ const styles = StyleSheet.create({
   syncIcon: {
     marginLeft: 4,
   },
+  // Updated Filter Container with Horizontal Scroll
   filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
     marginBottom: 16,
     backgroundColor: '#fff',
     borderRadius: 12,
     marginHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -715,21 +811,27 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginTop: 8,
   },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 12,
+  filterScrollContent: {
+    paddingHorizontal: 8,
     alignItems: 'center',
-    borderRadius: 8,
-    margin: 4,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginHorizontal: 4,
+    minWidth: 80,
+    alignItems: 'center',
     position: 'relative',
   },
   filterTabActive: {
     backgroundColor: '#F0F9FF',
   },
   filterText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
+    flexShrink: 1,
   },
   filterTextActive: {
     color: Color.primary,
@@ -739,7 +841,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     width: 20,
-    height: 3,
+    height: 2,
     backgroundColor: Color.primary,
     borderRadius: 2,
   },
@@ -749,6 +851,13 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 80,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#111827',
+    marginTop: 8,
   },
   taskCard: {
     backgroundColor: '#fff',

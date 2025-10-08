@@ -5,6 +5,35 @@ import urls from '../../utils/http/urls';
 
 const API_BASE_URL = urls.API_BASE_URL;
 
+// Yard interfaces
+interface Yard {
+  id: number;
+  code: string;
+  name: string;
+  capacity: number;
+  status: string;
+  location: string;
+  herdCount: number;
+  deckCount: number;
+  decksOccupied: number;
+  decksAvailable: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PageInfo {
+  size: number;
+  number: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+interface FetchYardsResponse {
+  content: Yard[];
+  page: PageInfo;
+}
+
+// Livestock KPI interfaces
 interface LivestockKPIs {
   herdTypeCounts: {
     COWS: number;
@@ -36,17 +65,40 @@ interface LivestockKPIs {
   }>;
 }
 
+// Combined state interface
 interface LivestockState {
+  // KPIs data
   kpis: LivestockKPIs | null;
-  loading: boolean;
-  error: string | null;
+  kpisLoading: boolean;
+  kpisError: string | null;
+  
+  // Yards data
+  yards: Yard[];
+  yardsLoading: boolean;
+  yardsError: string | null;
+  totalPages: number;
+  currentPage: number;
+  totalElements: number;
+  pageSize: number;
 }
 
 const initialState: LivestockState = {
+  // KPIs state
   kpis: null,
-  loading: false,
-  error: null,
+  kpisLoading: false,
+  kpisError: null,
+  
+  // Yards state
+  yards: [],
+  yardsLoading: false,
+  yardsError: null,
+  totalPages: 0,
+  currentPage: 0,
+  totalElements: 0,
+  pageSize: 9,
 };
+
+// ==================== LIVESTOCK KPI ACTIONS ====================
 
 // Fetch livestock KPIs with offline cache
 export const fetchLivestockKPIs = createAsyncThunk(
@@ -98,52 +150,234 @@ export const loadCachedLivestockKPIs = createAsyncThunk(
   }
 );
 
+// ==================== YARDS ACTIONS ====================
+
+// Fetch yards with pagination and offline cache
+export const fetchLivestockYards = createAsyncThunk<
+  FetchYardsResponse,
+  { page?: number; size?: number },
+  { state: any }
+>(
+  'livestock/fetchYards',
+  async ({ page = 0, size = 9 }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as any;
+      const token = state.auth.accessToken;
+
+      const response = await axios.get(`${API_BASE_URL}/yards`, {
+        params: { page, size },
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Save each page in AsyncStorage
+      await AsyncStorage.setItem(`livestock_yards_page_${page}`, JSON.stringify(response.data));
+
+      return response.data;
+    } catch (err: any) {
+      // Load cached page if offline
+      const cached = await AsyncStorage.getItem(`livestock_yards_page_${page}`);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+
+      if (axios.isAxiosError(err)) {
+        return rejectWithValue(err.response?.data || 'Failed to fetch yards');
+      }
+      return rejectWithValue('An unexpected error occurred');
+    }
+  }
+);
+
+// Load cached yards for offline support
+export const loadCachedLivestockYards = createAsyncThunk(
+  'livestock/loadCachedYards',
+  async (_, { rejectWithValue }) => {
+    try {
+      const yards: Yard[] = [];
+      let currentPage = 0;
+      let totalPages = 0;
+      let totalElements = 0;
+      let pageSize = 9;
+
+      // Only load the first page for initial display
+      const cached = await AsyncStorage.getItem(`livestock_yards_page_0`);
+      if (cached) {
+        const pageData: FetchYardsResponse = JSON.parse(cached);
+        yards.push(...pageData.content);
+        totalPages = pageData.page.totalPages;
+        totalElements = pageData.page.totalElements;
+        pageSize = pageData.page.size;
+        currentPage = 0;
+      }
+
+      return {
+        yards,
+        totalPages,
+        currentPage,
+        totalElements,
+        pageSize,
+      };
+    } catch (err) {
+      return rejectWithValue('Failed to load cached yards');
+    }
+  }
+);
+
 const livestockSlice = createSlice({
   name: 'livestock',
   initialState,
   reducers: {
-    clearLivestock: (state) => {
+    // Reset the entire livestock slice to initial state
+    resetLivestock: (state) => {
+      // Clear KPIs
       state.kpis = null;
-      state.error = null;
+      state.kpisLoading = false;
+      state.kpisError = null;
+      
+      // Clear yards
+      state.yards = [];
+      state.yardsLoading = false;
+      state.yardsError = null;
+      state.totalPages = 0;
+      state.currentPage = 0;
+      state.totalElements = 0;
+      state.pageSize = 9;
+      
+      // Clear cached data from AsyncStorage
+      // Note: This is async but we don't need to wait for it
+      const clearAsyncStorage = async () => {
+        try {
+          // Get all keys from AsyncStorage
+          const keys = await AsyncStorage.getAllKeys();
+          
+          // Filter keys related to livestock
+          const livestockKeys = keys.filter(key => 
+            key.startsWith('livestock_kpis') || 
+            key.startsWith('livestock_yards_page_')
+          );
+          
+          // Remove all livestock-related keys
+          if (livestockKeys.length > 0) {
+            await AsyncStorage.multiRemove(livestockKeys);
+          }
+        } catch (error) {
+          console.error('Error clearing livestock AsyncStorage:', error);
+        }
+      };
+      
+      clearAsyncStorage();
+    },
+    clearLivestock: (state) => {
+      // Clear KPIs
+      state.kpis = null;
+      state.kpisError = null;
+      
+      // Clear yards
+      state.yards = [];
+      state.yardsError = null;
+      state.totalPages = 0;
+      state.currentPage = 0;
+      state.totalElements = 0;
+      
       // Clear cached data
-      AsyncStorage.removeItem('livestock_kpis');
+      AsyncStorage.multiRemove([
+        'livestock_kpis',
+        ...Object.keys(AsyncStorage).filter(key => key.startsWith('livestock_yards_page_'))
+      ]);
     },
     updateLivestockKPI: (state, action) => {
       if (state.kpis) {
         state.kpis = { ...state.kpis, ...action.payload };
       }
     },
+    updateYardStatus: (state, action) => {
+      const { yardId, status } = action.payload;
+      const yard = state.yards.find((y) => y.id === yardId);
+      if (yard) {
+        yard.status = status;
+      }
+    },
+    clearYardsList: (state) => {
+      state.yards = [];
+    },
   },
   extraReducers: (builder) => {
     builder
+      // ==================== KPI CASES ====================
       // Fetch KPIs
       .addCase(fetchLivestockKPIs.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        state.kpisLoading = true;
+        state.kpisError = null;
       })
       .addCase(fetchLivestockKPIs.fulfilled, (state, action) => {
-        state.loading = false;
+        state.kpisLoading = false;
         state.kpis = action.payload;
       })
       .addCase(fetchLivestockKPIs.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
+        state.kpisLoading = false;
+        state.kpisError = action.payload as string;
       })
       // Load cached KPIs
       .addCase(loadCachedLivestockKPIs.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        state.kpisLoading = true;
+        state.kpisError = null;
       })
       .addCase(loadCachedLivestockKPIs.fulfilled, (state, action) => {
-        state.loading = false;
+        state.kpisLoading = false;
         state.kpis = action.payload;
       })
       .addCase(loadCachedLivestockKPIs.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
+        state.kpisLoading = false;
+        state.kpisError = action.payload as string;
+      })
+      
+      // ==================== YARDS CASES ====================
+      // Fetch yards
+      .addCase(fetchLivestockYards.pending, (state) => {
+        state.yardsLoading = true;
+        state.yardsError = null;
+      })
+      .addCase(fetchLivestockYards.fulfilled, (state, action) => {
+        state.yardsLoading = false;
+        state.yards = action.payload.content;
+        state.totalPages = action.payload.page.totalPages;
+        state.currentPage = action.payload.page.number;
+        state.totalElements = action.payload.page.totalElements;
+        state.pageSize = action.payload.page.size;
+      })
+      .addCase(fetchLivestockYards.rejected, (state, action) => {
+        state.yardsLoading = false;
+        state.yardsError = action.payload as string || 'Failed to fetch yards';
+      })
+      // Load cached yards
+      .addCase(loadCachedLivestockYards.pending, (state) => {
+        state.yardsLoading = true;
+        state.yardsError = null;
+      })
+      .addCase(loadCachedLivestockYards.fulfilled, (state, action) => {
+        state.yardsLoading = false;
+        state.yards = action.payload.yards;
+        state.totalPages = action.payload.totalPages;
+        state.currentPage = action.payload.currentPage;
+        state.totalElements = action.payload.totalElements;
+        state.pageSize = action.payload.pageSize;
+      })
+      .addCase(loadCachedLivestockYards.rejected, (state, action) => {
+        state.yardsLoading = false;
+        state.yardsError = action.payload as string;
       });
   },
 });
 
-export const { clearLivestock, updateLivestockKPI } = livestockSlice.actions;
+export const { 
+  resetLivestock, // Add this export
+  clearLivestock, 
+  updateLivestockKPI, 
+  updateYardStatus, 
+  clearYardsList 
+} = livestockSlice.actions;
+
 export default livestockSlice.reducer;

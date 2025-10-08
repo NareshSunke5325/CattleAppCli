@@ -13,6 +13,7 @@ import {
   Image,
   Animated,
   Easing,
+  Modal,
 } from 'react-native';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -20,6 +21,14 @@ import { useAppDispatch, useAppSelector } from '../store/store';
 import { fetchDashboard } from '../store/slices/dashboardSlice';
 import { logout } from '../store/slices/authSlice';
 import { Color } from '../theme';
+
+// Import all reset actions
+import { resetYards } from '../store/slices/yardsSlice';
+import { resetLivestock } from '../store/slices/livestockSlice';
+import { resetRoster } from '../store/slices/rosterSlice';
+import { resetOrders } from '../store/slices/orderSlice';
+import { resetNotifications } from '../store/slices/notificationsSlice';
+import { resetUsers } from '../store/slices/userSlice';
 
 const DEVICE_HEIGHT = Dimensions.get('window').height;
 const DEVICE_WIDTH = Dimensions.get('window').width;
@@ -35,6 +44,9 @@ const Dashboard = () => {
   );
   const [headerScale] = useState(new Animated.Value(0));
   const [contentOpacity] = useState(new Animated.Value(0));
+
+  // Logout state
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     dispatch(fetchDashboard());
@@ -105,16 +117,43 @@ const Dashboard = () => {
     ],
   });
 
-  function logoutCalled() {
+  async function logoutCalled() {
     Alert.alert('', 'Are you sure you want to logout from Cattle Yard Management?', [
       {
-        text: 'Yes',
-        onPress: () => {
-          dispatch(logout());
-          navigation.navigate('LoginScreen');
+        text: 'Cancel',
+        style: 'cancel',
+        onPress: () => null,
+      },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          setIsLoggingOut(true);
+          
+          try {
+            // Reset all slices before logging out
+            await Promise.all([
+              dispatch(resetYards()),
+              dispatch(resetLivestock()),
+              dispatch(resetRoster()),
+              dispatch(resetOrders()),
+              dispatch(resetNotifications()),
+              dispatch(resetUsers()),
+            ]);
+
+            // Small delay to show loading
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Then logout and navigate to login
+            dispatch(logout());
+            navigation.navigate('LoginScreen');
+          } catch (error) {
+            console.log('Logout error:', error);
+          } finally {
+            setIsLoggingOut(false);
+          }
         },
       },
-      { text: 'No', onPress: () => null },
     ]);
   }
 
@@ -152,7 +191,7 @@ const Dashboard = () => {
       subtitle: 'Cattle sales & purchase orders',
       icon: '📦',
       backgroundImage: require('../images/Live-Stock-Image-800X533.png'),
-      route: '',
+      route: 'OrderScreen',
       stats: '5 Pending Orders'
     },
     {
@@ -161,7 +200,7 @@ const Dashboard = () => {
       subtitle: 'Alerts & important updates',
       icon: '🔔',
       backgroundImage: require('../images/Notifications-Images-800X533.png'),
-      route: '',
+      route: 'NotificationsScreen',
       stats: '3 New Alerts'
     },
     {
@@ -170,7 +209,7 @@ const Dashboard = () => {
       subtitle: 'User management & permissions',
       icon: '👥',
       backgroundImage: require('../images/Orders-Image-800X533.png'),
-      route: '',
+      route: 'UsersScreen',
       stats: '10 Active Users'
     },
   ];
@@ -215,12 +254,6 @@ const Dashboard = () => {
             style={styles.cardBackgroundImage}
             imageStyle={styles.cardImageStyle}
           >
-            {/* Dark Overlay */}
-            {/* <View style={styles.darkOverlay} /> */}
-
-            {/* Glass Effect Overlay */}
-            {/* <View style={styles.glassOverlay} /> */}
-
             {/* Card Content */}
             <View style={styles.cardContent}>
               {/* Icon Container */}
@@ -240,9 +273,9 @@ const Dashboard = () => {
               </View>
 
               {/* Arrow Icon */}
-              {/* <View style={styles.arrowContainer}>
+               <View style={styles.arrowContainer}>
                 <Icon name="arrow-forward" size={28} color="rgba(255, 255, 255, 0.9)" />
-              </View> */}
+              </View>
             </View>
 
             {/* Decorative Elements */}
@@ -250,17 +283,46 @@ const Dashboard = () => {
             <View style={styles.decorativeCircle2} />
 
             {/* Shimmer Effect */}
-            {/* <View style={styles.shimmerEffect} /> */}
+            <View style={styles.shimmerEffect} />
           </ImageBackground>
         </TouchableOpacity>
       </Animated.View>
     );
   };
 
+  // Logout Loader Modal
+  const LogoutLoaderModal = () => (
+    <Modal
+      visible={isLoggingOut}
+      transparent={true}
+      animationType="fade"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.logoutLoader}>
+          <ActivityIndicator size="large" color={Color.primary} />
+          <Text style={styles.logoutText}>Logging out...</Text>
+          <Text style={styles.logoutSubtext}>Clearing your session data</Text>
+          
+          {/* Progress steps */}
+          <View style={styles.progressSteps}>
+            <View style={styles.step}>
+              <Icon name="check" size={16} color="#10B981" />
+              <Text style={styles.stepText}>Resetting data</Text>
+            </View>
+            <View style={styles.step}>
+              <ActivityIndicator size="small" color={Color.primary} />
+              <Text style={styles.stepText}>Logging out</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <ImageBackground
       style={{
-        backgroundColor: Color.primary,
+        backgroundColor: "#ffffff",
         justifyContent: 'flex-start',
         height: DEVICE_HEIGHT,
       }}
@@ -272,7 +334,6 @@ const Dashboard = () => {
         }}
       />
 
-    
       <SafeAreaView style={{ flex: 1 }}>
         <View style={{ backgroundColor: 'rgba(245, 245, 245, 0.1)', flex: 1 }}>
 
@@ -288,11 +349,15 @@ const Dashboard = () => {
             </TouchableOpacity>
 
             <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={styles.headerTitle}>Dashboard</Text>
+              <Text style={styles.headerTitle}>Home</Text>
               <View style={styles.headerUnderline} />
             </View>
 
-            <TouchableOpacity onPress={logoutCalled} style={styles.headerButton}>
+            <TouchableOpacity 
+              onPress={logoutCalled} 
+              style={styles.headerButton}
+              disabled={isLoggingOut}
+            >
               <Icon name="logout" color={'#fff'} size={24} />
             </TouchableOpacity>
           </Animated.View>
@@ -321,6 +386,9 @@ const Dashboard = () => {
               </ScrollView>
             </Animated.View>
           )}
+
+          {/* Logout Loader Modal Only */}
+          <LogoutLoaderModal />
         </View>
       </SafeAreaView>
     </ImageBackground>
@@ -382,7 +450,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    height: 200,
+    height: 108,
     width: '100%',
     borderRadius: 24,
     overflow: 'hidden',
@@ -401,26 +469,6 @@ const styles = StyleSheet.create({
   },
   cardImageStyle: {
     borderRadius: 24,
-  },
-  darkOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: 24,
-  },
-  glassOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   cardContent: {
     flex: 1,
@@ -511,6 +559,49 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     transform: [{ skewX: '-20deg' }],
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  logoutLoader: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '80%',
+    maxWidth: 300,
+  },
+  logoutText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Color.primary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  logoutSubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  progressSteps: {
+    width: '100%',
+    gap: 12,
+  },
+  step: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
   },
 });
 

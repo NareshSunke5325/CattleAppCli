@@ -5,6 +5,9 @@ import YardsScreen from '../components/YardsScreen';
 import LivestockScreen from '../components/LivestockScreen';
 import TaskRosterScreen from '../components/TaskRosterScreen';
 import Dashboard from '../components/Dashboard';
+import OrderScreen from '../components/OrderScreen';
+import NotificationsScreen from '../components/NotificationsScreen';
+import UsersScreen from '../components/UsersScreen';
 
 interface Route {
   name: string;
@@ -33,14 +36,29 @@ const StackRoutesList: Array<Route> = [
     component: YardsScreen,
     options,
   },
-     {
+    {
     name: 'LivestockScreen',
     component: LivestockScreen,
     options,
   },
-     {
+    {
     name: 'TaskRosterScreen',
     component: TaskRosterScreen,
+    options,
+  },
+    {
+    name: 'OrderScreen',
+    component: OrderScreen,
+    options,
+  },
+    {
+    name: 'NotificationsScreen',
+    component: NotificationsScreen,
+    options,
+  },
+    {
+    name: 'UsersScreen',
+    component: UsersScreen,
     options,
   },
 

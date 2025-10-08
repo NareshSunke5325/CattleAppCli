@@ -7,21 +7,27 @@ import authReducer from './slices/authSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import yardsReducer from './slices/yardsSlice';
 import livestockReducer from './slices/livestockSlice';
-import rosterSlice from './slices/rosterSlice';
+import rosterReducer from './slices/rosterSlice';
+import orderReducer from './slices/orderSlice';
+import notificationsReducer from './slices/notificationsSlice';
+import usersSlice from './slices/userSlice'; 
 
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
- whitelist: ['auth', 'roster', 'yards', 'livestock'], // Only persist auth state
+  whitelist: ['auth', 'roster', 'yards', 'livestock', 'order','notifications',], // Add 'order' to whitelist
 };
 
 const rootReducer = combineReducers({
   auth: authReducer,
   dashboard: dashboardReducer,
   yards: yardsReducer,
-   roster: rosterSlice,
+  roster: rosterReducer,
   livestock: livestockReducer,
+  order: orderReducer, 
+  notifications: notificationsReducer,
+  users: usersSlice, // Add users slice here
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

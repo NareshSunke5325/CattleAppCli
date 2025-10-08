@@ -1,3 +1,4 @@
+// screens/YardsScreen.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +14,7 @@ import {
   Easing,
   RefreshControl,
 } from 'react-native';
-import { DrawerActions, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import NetInfo from '@react-native-community/netinfo';
 import { useAppDispatch, useAppSelector } from '../store/store';
@@ -39,6 +40,24 @@ interface YardCardProps {
   onBookPress: (yardId: number, yardCode: string) => void;
   animationStyle: any;
 }
+
+// --- Loading Overlay with Yard Theme ---
+const LoadingOverlay = ({ isConnected }: { isConnected: boolean | null }) => (
+  <View style={styles.loadingOverlay}>
+    <View style={styles.loadingContent}>
+      {/* Yard-themed icon */}
+      <View style={styles.yardIconContainer}>
+        <Icon name="local-shipping" size={48} color={Color.primary} />
+        <View style={styles.iconPulse} />
+      </View>
+      <Text style={styles.loadingText}>Loading Yards</Text>
+      <Text style={styles.loadingSubtext}>
+        {isConnected === false ? 'Offline - loading cached data' : 'Preparing yard management...'}
+      </Text>
+      <ActivityIndicator size="large" color={Color.primary} style={styles.loadingSpinner} />
+    </View>
+  </View>
+);
 
 const StatusDot = ({
   status,
@@ -124,6 +143,22 @@ function YardCard({ yard, onStatusPress, onBookPress, animationStyle }: YardCard
     }
   };
 
+  // Function to get background color based on status
+  const getBackgroundColor = () => {
+    switch (yardStatus) {
+      case 'AVAILABLE':
+        return '#F0FDF4'; // Light green
+      case 'PARTIAL':
+        return '#FFFBEB'; // Light amber/orange
+      case 'FULL':
+        return '#FEF2F2'; // Light red
+      case 'MAINTENANCE':
+        return '#EFF6FF'; // Light blue
+      default:
+        return '#FFFFFF'; // White
+    }
+  };
+
   const getStatusText = () => {
     return yardStatus;
   };
@@ -132,7 +167,9 @@ function YardCard({ yard, onStatusPress, onBookPress, animationStyle }: YardCard
     <Animated.View 
       style={[
         styles.yardCard, 
-        { backgroundColor: isAvailable ? '#F0FDF4' : '#FFFFFF' },
+        { 
+          backgroundColor: getBackgroundColor(),
+        },
         animationStyle
       ]}
     >
@@ -199,6 +236,60 @@ function YardCard({ yard, onStatusPress, onBookPress, animationStyle }: YardCard
   );
 }
 
+// --- Updated Filter Tabs without Scroll ---
+const FilterTabs = ({ 
+  selectedStatus, 
+  setSelectedStatus, 
+  fadeAnim 
+}: { 
+  selectedStatus: string; 
+  setSelectedStatus: (status: string) => void;
+  fadeAnim: Animated.Value;
+}) => {
+  const filters = [
+    { key: 'ALL', label: 'All' },
+    { key: 'AVAILABLE', label: 'Available' },
+    { key: 'PARTIAL', label: 'Partial' },
+    { key: 'FULL', label: 'Full' },
+    { key: 'MAINTENANCE', label: 'Maintenance' }
+  ];
+
+  return (
+    <Animated.View style={[styles.filterContainer, { opacity: fadeAnim }]}>
+      <View style={styles.filterContentContainer}>
+        {filters.map((filter) => (
+          <TouchableOpacity
+            key={filter.key}
+            style={[
+              styles.filterTab,
+              selectedStatus === filter.key && styles.filterTabActive
+            ]}
+            onPress={() => setSelectedStatus(filter.key)}
+          >
+            <View style={styles.filterContent}>
+              {filter.key !== 'ALL' && (
+                <StatusDot status={filter.key} />
+              )}
+              {filter.key === 'ALL' && (
+                <View style={[styles.allStatusDot, { backgroundColor: '#6B7280' }]} />
+              )}
+              <Text style={[
+                styles.filterText,
+                selectedStatus === filter.key && styles.filterTextActive
+              ]} numberOfLines={1}>
+                {filter.label}
+              </Text>
+            </View>
+            {selectedStatus === filter.key && (
+              <View style={styles.filterIndicator} />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </Animated.View>
+  );
+};
+
 export default function YardsScreen() {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
@@ -218,6 +309,7 @@ export default function YardsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -246,7 +338,7 @@ export default function YardsScreen() {
     return () => unsubscribe();
   }, [isConnected, yards.length]);
 
-  // Optimized data loading strategy
+  // Optimized data loading strategy with loading overlay
   useFocusEffect(
     useCallback(() => {
       let isActive = true;
@@ -255,41 +347,47 @@ export default function YardsScreen() {
         if (!isActive) return;
 
         try {
-          setIsInitialLoad(true);
-          
-          // Step 1: Immediately load cached data (instant display)
-          console.log('📱 Loading cached yards...');
-          await dispatch(loadCachedYards());
-          
-          if (isActive) {
-            setIsInitialLoad(false);
-            startEntranceAnimations();
-          }
+          setShowLoadingOverlay(true);
 
-          // Step 2: Check network and sync in background
           const netState = await NetInfo.fetch();
           const connected = netState.isConnected ?? false;
-          
-          if (connected && isActive) {
-            console.log('🌐 Online - starting background sync...');
-            handleBackgroundSync();
-          } else if (isActive) {
-            console.log('📴 Offline - using cached data only');
+
+          if (connected) {
+            console.log("🌐 Online - fetching yards...");
+            await dispatch(fetchYards({ page: 0, size: pageSize }));
+          } else {
+            console.log("📴 Offline - loading cached yards...");
+            await dispatch(loadCachedYards());
           }
-        } catch (error) {
-          console.log('❌ Error loading data:', error);
+
           if (isActive) {
             setIsInitialLoad(false);
+            // Start animations immediately, then hide loading overlay
+            startEntranceAnimations();
+            
+            // Delay hiding the loading overlay to ensure animations are visible
+            setTimeout(() => {
+              setShowLoadingOverlay(false);
+            }, 600);
+          }
+        } catch (error) {
+          console.log("❌ Error loading yards:", error);
+          if (isActive) {
+            // fallback to cache if fetch fails
+            await dispatch(loadCachedYards());
+            setIsInitialLoad(false);
+            startEntranceAnimations();
+            setShowLoadingOverlay(false);
           }
         }
       };
 
       loadData();
 
-      return () => {
+      return () => { 
         isActive = false;
       };
-    }, [dispatch])
+    }, [dispatch, pageSize])
   );
 
   // Background sync function
@@ -323,6 +421,8 @@ export default function YardsScreen() {
     setIsRefreshing(true);
     try {
       await dispatch(fetchYards({ page: localCurrentPage, size: pageSize }));
+      // Restart animations after refresh
+      startEntranceAnimations();
     } catch (error) {
       console.log('Refresh failed:', error);
       Alert.alert('Sync Failed', 'Unable to refresh data. Please check your connection.');
@@ -338,11 +438,19 @@ export default function YardsScreen() {
       return;
     }
 
+    setShowLoadingOverlay(true);
     try {
       await dispatch(fetchYards({ page, size: pageSize }));
       setLocalCurrentPage(page);
+      
+      // Start animations and then hide loading overlay
+      startEntranceAnimations();
+      setTimeout(() => {
+        setShowLoadingOverlay(false);
+      }, 600);
     } catch (error) {
       console.log('Page change failed:', error);
+      setShowLoadingOverlay(false);
       Alert.alert('Error', 'Failed to load page. Please try again.');
     }
   };
@@ -352,14 +460,13 @@ export default function YardsScreen() {
     setLocalCurrentPage(currentPage);
   }, [currentPage]);
 
-  // Start animations when we have yards
-  useEffect(() => {
-    if (!isInitialLoad && yards.length > 0) {
-      startEntranceAnimations();
-    }
-  }, [isInitialLoad, yards]);
-
+  // Start animations when we have data
   const startEntranceAnimations = () => {
+    // Reset animations first
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.8);
+    cardAnimations.forEach(anim => anim.setValue(0));
+
     // Header scale animation
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -389,6 +496,12 @@ export default function YardsScreen() {
       }
     });
   };
+
+  useEffect(() => {
+    if (!isInitialLoad && yards.length > 0 && !showLoadingOverlay) {
+      startEntranceAnimations();
+    }
+  }, [isInitialLoad, yards, showLoadingOverlay]);
 
   const getCardTransform = (anim: Animated.Value) => ({
     transform: [
@@ -482,42 +595,6 @@ export default function YardsScreen() {
     />
   );
 
-  const FilterTabs = () => (
-    <Animated.View style={[styles.filterContainer, { opacity: fadeAnim }]}>
-      {['ALL', 'AVAILABLE', 'PARTIAL', 'FULL', 'MAINTENANCE'].map((filter) => (
-        <TouchableOpacity
-          key={filter}
-          style={[
-            styles.filterTab,
-            selectedStatus === filter && styles.filterTabActive
-          ]}
-          onPress={() => setSelectedStatus(filter)}
-        >
-          <View style={styles.filterContent}>
-            {filter !== 'ALL' && (
-              <StatusDot status={filter} />
-            )}
-            {filter === 'ALL' && (
-              <View style={[styles.allStatusDot, { backgroundColor: '#6B7280' }]} />
-            )}
-            <Text style={[
-              styles.filterText,
-              selectedStatus === filter && styles.filterTextActive
-            ]}>
-              {filter === 'ALL' ? 'All' : 
-               filter === 'AVAILABLE' ? 'Available' :
-               filter === 'PARTIAL' ? 'Partial' :
-               filter === 'FULL' ? 'Full' : 'Maintenance'}
-            </Text>
-          </View>
-          {selectedStatus === filter && (
-            <View style={styles.filterIndicator} />
-          )}
-        </TouchableOpacity>
-      ))}
-    </Animated.View>
-  );
-
   const Pagination = () => (
     <Animated.View style={[styles.pagination, { opacity: fadeAnim }]}>
       <TouchableOpacity
@@ -586,21 +663,13 @@ export default function YardsScreen() {
     </View>
   );
 
-  // Show loading only for initial load with no cached data
-  if (isInitialLoad && yards.length === 0) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Color.primary} />
-        <Text style={styles.loadingText}>Loading yards...</Text>
-        <Text style={styles.loadingSubtext}>
-          {isConnected === false ? 'Offline - loading cached data' : 'Preparing yards...'}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Loading Overlay with Yard Theme */}
+      {showLoadingOverlay && (
+        <LoadingOverlay isConnected={isConnected} />
+      )}
+
       {/* Header */}
       <Animated.View style={[styles.header, getHeaderTransform()]}>
         <TouchableOpacity
@@ -625,7 +694,11 @@ export default function YardsScreen() {
       {/* <NetworkStatus /> */}
 
       {/* Filter Tabs */}
-      <FilterTabs />
+      <FilterTabs 
+        selectedStatus={selectedStatus} 
+        setSelectedStatus={setSelectedStatus} 
+        fadeAnim={fadeAnim} 
+      />
 
       {/* Yards List */}
       <Animated.View style={[styles.listContainer, { opacity: fadeAnim }]}>
@@ -635,6 +708,11 @@ export default function YardsScreen() {
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <Text style={styles.sectionTitle}>
+              All Yards ({filteredYards.length})
+            </Text>
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="location-on" size={48} color="#D1D5DB" />
@@ -678,24 +756,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
+  // Loading Overlay Styles
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(249, 250, 251, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 20,
+    zIndex: 1000,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  yardIconContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  iconPulse: {
+    position: 'absolute',
+    top: -10,
+    left: -10,
+    right: -10,
+    bottom: -10,
+    backgroundColor: '#10B98120',
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: '#10B98140',
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '600',
+    fontSize: 18,
+    color: Color.primary,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   loadingSubtext: {
     marginTop: 8,
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#6B7280',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
   },
   header: {
     backgroundColor: Color.primary,
@@ -764,14 +871,14 @@ const styles = StyleSheet.create({
   syncIcon: {
     marginLeft: 4,
   },
+  // Updated Filter Container without Scroll
   filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
     marginBottom: 16,
     backgroundColor: '#fff',
     borderRadius: 12,
     marginHorizontal: 16,
-    paddingVertical: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12, // Reduced horizontal padding
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -779,13 +886,19 @@ const styles = StyleSheet.create({
     elevation: 2,
     marginTop: 8,
   },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 8,
+  filterContentContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between', // Evenly distribute space
     alignItems: 'center',
-    borderRadius: 8,
-    margin: 2,
+  },
+  filterTab: {
+    paddingHorizontal: 10, // Reduced horizontal padding
+    paddingVertical: 8,    // Reduced vertical padding
+    borderRadius: 16,      // Slightly smaller border radius
+    alignItems: 'center',
     position: 'relative',
+    flex: 1,              // Equal flex distribution
+    marginHorizontal: 2,   // Reduced margin between tabs
   },
   filterTabActive: {
     backgroundColor: '#F0F9FF',
@@ -793,10 +906,11 @@ const styles = StyleSheet.create({
   filterContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 4,               // Reduced gap between dot and text
+    justifyContent: 'center',
   },
   filterText: {
-    fontSize: 12,
+    fontSize: 11,         // Font size 11 as requested
     color: '#6B7280',
     fontWeight: '500',
   },
@@ -806,16 +920,16 @@ const styles = StyleSheet.create({
   },
   filterIndicator: {
     position: 'absolute',
-    bottom: 2,
-    width: 16,
+    bottom: 2,            // Adjusted position
+    width: 16,            // Smaller indicator
     height: 2,
     backgroundColor: Color.primary,
     borderRadius: 2,
   },
   allStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,             // Smaller dot
+    height: 6,
+    borderRadius: 3,
   },
   listContainer: {
     flex: 1,
@@ -942,6 +1056,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#111827',
+    marginTop: 8,
   },
   emptyContainer: {
     alignItems: 'center',

@@ -184,6 +184,43 @@ const rosterSlice = createSlice({
   name: 'roster',
   initialState,
   reducers: {
+    // Reset the entire roster slice to initial state
+    resetRoster: (state) => {
+      // Reset all state to initial values
+      state.tasks = [];
+      state.progressStats = null;
+      state.loading = false;
+      state.error = null;
+      state.totalPages = 0;
+      state.currentPage = 0;
+      state.totalElements = 0;
+      state.pageSize = 6;
+      
+      // Clear cached data from AsyncStorage
+      // Note: This is async but we don't need to wait for it
+      const clearAsyncStorage = async () => {
+        try {
+          // Get all keys from AsyncStorage
+          const keys = await AsyncStorage.getAllKeys();
+          
+          // Filter keys related to roster/tasks
+          const rosterKeys = keys.filter(key => 
+            key.startsWith('tasks_page_') || 
+            key === 'progressStats'
+          );
+          
+          // Remove all roster-related keys
+          if (rosterKeys.length > 0) {
+            await AsyncStorage.multiRemove(rosterKeys);
+          }
+          console.log('🗑️ Cleared roster data from AsyncStorage');
+        } catch (error) {
+          console.error('❌ Error clearing roster AsyncStorage:', error);
+        }
+      };
+      
+      clearAsyncStorage();
+    },
     clearRoster: (state) => {
       state.tasks = [];
       state.progressStats = null;
@@ -257,5 +294,10 @@ const rosterSlice = createSlice({
   },
 });
 
-export const { clearRoster, updateTaskStatus, clearTasks } = rosterSlice.actions;
+export const { 
+  resetRoster, // Add this export
+  clearRoster, 
+  updateTaskStatus, 
+  clearTasks 
+} = rosterSlice.actions;
 export default rosterSlice.reducer;

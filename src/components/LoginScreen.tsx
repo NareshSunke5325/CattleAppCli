@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   Image,
   ImageBackground,
@@ -68,6 +69,14 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(persistedRememberMe || false);
   const [loginAttempted, setLoginAttempted] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideUpAnim = useRef(new Animated.Value(30)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const logoRotateAnim = useRef(new Animated.Value(0)).current;
+  const loadingProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     console.log('Auth State Changed:', {
@@ -83,21 +92,71 @@ export default function LoginScreen() {
     if (isAuthenticated && accessToken && refreshToken) {
       console.log('✅ Navigation conditions met - navigating to Home');
       
-      // Use replace instead of navigate to prevent going back to login
-      setTimeout(() => {
-        navigation.replace('Home');
-      }, 100);
+      // Animate success before navigation
+      Animated.parallel([
+        Animated.timing(loadingProgress, {
+          toValue: 100,
+          duration: 500,
+          useNativeDriver: false,
+        }),
+        Animated.timing(logoRotateAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Use replace instead of navigate to prevent going back to login
+        setTimeout(() => {
+          navigation.replace('Home');
+        }, 300);
+      });
     } else if (loginAttempted && !loading && !isAuthenticated) {
       console.log('❌ Login failed - showing error');
       // Error will be shown via the error state from Redux
     }
   }, [isAuthenticated, accessToken, refreshToken, loading, loginAttempted]);
 
-  // Check auth status on component mount
+  // Check auth status on component mount with animations
   useEffect(() => {
     const initializeAuth = async () => {
       console.log('🔐 Initializing auth check...');
+      
+      // Start loading animation
+      Animated.timing(loadingProgress, {
+        toValue: 30,
+        duration: 1000,
+        useNativeDriver: false,
+      }).start();
+
       await dispatch(checkAuthStatus());
+      
+      // Complete initial loading
+      Animated.timing(loadingProgress, {
+        toValue: 100,
+        duration: 500,
+        useNativeDriver: false,
+      }).start(() => {
+        // Reveal content with staggered animations
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideUpAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoScaleAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setIsInitializing(false);
+        });
+      });
     };
 
     initializeAuth();
@@ -109,6 +168,41 @@ export default function LoginScreen() {
       dispatch(clearError());
     }
   }, [username, password]);
+
+  // Loading animation during login
+  useEffect(() => {
+    if (loading) {
+      // Start pulsing animation for login loading
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(logoScaleAnim, {
+            toValue: 1.1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(logoScaleAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      // Progress bar animation
+      Animated.timing(loadingProgress, {
+        toValue: 80,
+        duration: 2000,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      // Reset animations when loading stops
+      Animated.timing(logoScaleAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading]);
 
   const onLogin = async () => {
     if (!username.trim()) {
@@ -122,6 +216,9 @@ export default function LoginScreen() {
 
     // Reset states
     setLoginAttempted(true);
+    
+    // Reset loading progress
+    loadingProgress.setValue(0);
     
     try {
       const result = await dispatch(loginUser({ 
@@ -146,18 +243,18 @@ export default function LoginScreen() {
         } else {
           console.log('Invalid token response structure:', result.payload);
           Alert.alert('Login Failed', 'Invalid server response. Please try again.');
+          loadingProgress.setValue(0);
         }
       } else if (loginUser.rejected.match(result)) {
         // Show the specific error from the authSlice
         const errorMessage = extractErrorMessage(result.payload);
         console.log('Login rejected with error:', errorMessage);
-        
-        // Don't show alert here - let the error state handle it
-        // The error will be displayed in the error section below the form
+        loadingProgress.setValue(0);
       }
     } catch (error) {
       console.log('Login error:', error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
+      loadingProgress.setValue(0);
     }
   };
 
@@ -197,20 +294,17 @@ export default function LoginScreen() {
     Alert.alert('Forgot Password', 'Please contact your administrator to reset your password.');
   };
 
-  // Debug component (remove in production)
-  const AuthDebugger = () => (
-    <View style={styles.debugContainer}>
-      <Text style={styles.debugText}>
-        Auth Debug:{'\n'}
-        Authenticated: {isAuthenticated ? '✅' : '❌'}{'\n'}
-        Access Token: {accessToken ? `✅ (${accessToken.length} chars)` : '❌'}{'\n'}
-        Refresh Token: {refreshToken ? `✅ (${refreshToken.length} chars)` : '❌'}{'\n'}
-        Loading: {loading ? '🔄' : '⚡'}{'\n'}
-        Error: {error ? '❌' : '✅'}{'\n'}
-        Remember Me: {rememberMe ? '✅' : '❌'}
-      </Text>
-    </View>
-  );
+  // Animated logo with rotation for success
+  const logoRotate = logoRotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  // Progress bar width interpolation
+  const progressWidth = loadingProgress.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
     <ImageBackground
@@ -220,33 +314,85 @@ export default function LoginScreen() {
     >
       <View style={styles.overlay} />
 
+      {/* Initial Loading Screen */}
+      {isInitializing && (
+        <View style={styles.initialLoadingContainer}>
+          <Animated.View 
+            style={[
+              styles.initialLogoContainer,
+              {
+                transform: [
+                  { scale: logoScaleAnim },
+                  { rotate: logoRotate }
+                ],
+              }
+            ]}
+          >
+            <Image
+              source={require('../images/logo.jpg')}
+              style={styles.initialLogo}
+            />
+            <Text style={styles.initialLoadingText}>CATTLE YARD</Text>
+            <Text style={styles.initialLoadingSubtext}>Loading...</Text>
+          </Animated.View>
+          
+          {/* Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <Animated.View 
+              style={[
+                styles.progressBar,
+                { width: progressWidth }
+              ]} 
+            />
+          </View>
+        </View>
+      )}
+
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <ScrollView
+          <Animated.ScrollView
             contentContainerStyle={styles.scroll}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            style={{
+              opacity: fadeAnim,
+              transform: [{ translateY: slideUpAnim }],
+            }}
           >
-            {/* Debug Info - Remove in production */}
-            {/* {__DEV__ && <AuthDebugger />} */}
-
             {/* Logo */}
             <View style={styles.logoSection}>
-              <View style={styles.logoBox}>
+              <Animated.View 
+                style={[
+                  styles.logoBox,
+                  {
+                    transform: [
+                      { scale: logoScaleAnim }
+                    ],
+                  }
+                ]}
+              >
                 <Image
                   source={require('../images/logo.jpg')}
                   style={styles.logo}
                 />
-              </View>
+              </Animated.View>
               <Text style={styles.appName}>CATTLE YARD MANAGEMENT</Text>
               <View style={styles.divider} />
             </View>
 
             {/* Form Card */}
-            <View style={styles.card}>
+            <Animated.View 
+              style={[
+                styles.card,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideUpAnim }],
+                }
+              ]}
+            >
               <Text style={styles.cardTitle}>Sign In</Text>
               <Text style={styles.cardSubtitle}>
                 Access your yard dashboard
@@ -358,7 +504,7 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Login Button */}
+              {/* Login Button with Progress Indicator */}
               <TouchableOpacity
                 style={[
                   styles.button,
@@ -367,10 +513,25 @@ export default function LoginScreen() {
                 onPress={onLogin}
                 disabled={loading || !username || !password}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Access Yard</Text>
+                <View style={styles.buttonContent}>
+                  {loading ? (
+                    <>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={styles.buttonText}>Accessing Yard...</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.buttonText}>Access Yard</Text>
+                  )}
+                </View>
+                
+                {/* In-button progress bar */}
+                {(loading || isInitializing) && (
+                  <Animated.View 
+                    style={[
+                      styles.buttonProgress,
+                      { width: progressWidth }
+                    ]} 
+                  />
                 )}
               </TouchableOpacity>
 
@@ -389,24 +550,55 @@ export default function LoginScreen() {
                   <Text style={styles.iconText}>Mobile</Text>
                 </View>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Footer Credit */}
-            <Text style={styles.footerText}>
+            <Animated.Text 
+              style={[
+                styles.footerText,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideUpAnim }],
+                }
+              ]}
+            >
               Designed & Developed by{' '}
               <Text style={styles.footerLink}>Object Technology Solutions</Text>
-            </Text>
-          </ScrollView>
+            </Animated.Text>
+          </Animated.ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
-      {/* Loading Overlay */}
+      {/* Loading Overlay for login process */}
       {loading && (
         <View style={styles.loadingOverlay}>
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={Color.primary} />
+          <Animated.View 
+            style={[
+              styles.loadingBox,
+              {
+                transform: [
+                  { scale: logoScaleAnim }
+                ],
+              }
+            ]}
+          >
+            <Image
+              source={require('../images/logo.jpg')}
+              style={styles.loadingLogo}
+            />
+            <ActivityIndicator size="large" color={Color.primary} style={styles.loadingSpinner} />
             <Text style={styles.loadingText}>Accessing yard...</Text>
-          </View>
+            
+            {/* Progress bar */}
+            <View style={styles.progressBarContainer}>
+              <Animated.View 
+                style={[
+                  styles.progressBar,
+                  { width: progressWidth }
+                ]} 
+              />
+            </View>
+          </Animated.View>
         </View>
       )}
     </ImageBackground>
@@ -422,21 +614,51 @@ const styles = StyleSheet.create({
   },
   safeArea: { flex: 1, justifyContent: 'center' },
   scroll: { padding: 24, paddingBottom: 40 },
-  // Debug styles
-  debugContainer: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    padding: 8,
-    borderRadius: 5,
+  
+  // Initial Loading Styles
+  initialLoadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(46,139,87,0.95)',
     zIndex: 1000,
   },
-  debugText: {
-    color: 'white',
-    fontSize: 10,
-    lineHeight: 12,
+  initialLogoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
   },
+  initialLogo: {
+    width: 120,
+    height: 120,
+    borderRadius: 24,
+    marginBottom: 20,
+  },
+  initialLoadingText: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  initialLoadingSubtext: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  
+  // Progress Bar Styles
+  progressBarContainer: {
+    width: 200,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 2,
+  },
+  
+  // Logo Section
   logoSection: { alignItems: 'center', marginBottom: 32, marginTop: 16 },
   logoBox: {
     width: 120,
@@ -466,6 +688,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginTop: 8,
   },
+  
+  // Card Styles
   card: {
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 28,
@@ -489,6 +713,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
+  
+  // Input Styles
   label: {
     fontSize: 12,
     fontWeight: '600',
@@ -533,6 +759,8 @@ const styles = StyleSheet.create({
     backgroundColor: Color.warning, 
     marginRight: 12 
   },
+  
+  // Options Row
   optionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -574,6 +802,8 @@ const styles = StyleSheet.create({
   disabledText: {
     opacity: 0.5,
   },
+  
+  // Error Styles
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -588,6 +818,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
   },
+  
+  // Button Styles
   button: {
     backgroundColor: Color.primary,
     borderRadius: 18,
@@ -596,16 +828,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 16,
     elevation: 8,
+    overflow: 'hidden',
   },
   buttonDisabled: {
     backgroundColor: 'rgba(46,139,87,0.5)',
     elevation: 0,
   },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 1,
+  },
   buttonText: { 
     color: '#fff', 
     fontSize: 16, 
-    fontWeight: 'bold' 
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
+  buttonProgress: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  
+  // Features Row
   featuresRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -621,6 +869,8 @@ const styles = StyleSheet.create({
     color: Color.primary,
     marginLeft: 6,
   },
+  
+  // Footer
   footerText: {
     fontSize: 12,
     color: '#fff',
@@ -631,23 +881,35 @@ const styles = StyleSheet.create({
     color: "#4cd193ff",
     fontWeight: '500',
   },
+  
+  // Loading Overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    margin: 20,
   },
   loadingBox: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 20,
+    padding: 30,
     alignItems: 'center',
-    elevation: 8,
+    elevation: 12,
+    minWidth: 200,
+  },
+  loadingLogo: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  loadingSpinner: {
+    marginBottom: 12,
   },
   loadingText: { 
-    marginTop: 12, 
     color: Color.primary, 
-    fontSize: 16 
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 16,
   },
 });
